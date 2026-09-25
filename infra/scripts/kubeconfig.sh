@@ -37,7 +37,8 @@ AWS_ARGS=(--region "$REGION")
 if [ -n "$SOURCE_FILE" ]; then
   CONTENT="$(cat "$SOURCE_FILE")"
 else
-  CONTENT="$(aws ssm get-parameter "${AWS_ARGS[@]}" --name "/fix/$ENVIRONMENT/kubeconfig" --with-decryption --query Parameter.Value --output text)"
+  # MSYS_NO_PATHCONV: no Git Bash (Windows), "/fix/..." não pode virar caminho do Windows.
+  CONTENT="$(MSYS_NO_PATHCONV=1 aws ssm get-parameter "${AWS_ARGS[@]}" --name "/fix/$ENVIRONMENT/kubeconfig" --with-decryption --query Parameter.Value --output text)"
 fi
 if ! grep -q 'apiVersion: *v1' <<<"$CONTENT"; then
   echo "O kubeconfig ainda não foi publicado pelo nó (valor atual: '$CONTENT'). Aguarde o bootstrap terminar (~5 min)." >&2
@@ -50,15 +51,23 @@ fi
 
 KUBE_DIR="$(dirname "$KUBECONFIG_PATH")"
 mkdir -p "$KUBE_DIR"
-CLUSTER_FILE="$KUBE_DIR/$NAME.yaml"
-printf '%s\n' "$CONTENT" > "$CLUSTER_FILE"
+# Cópia intermediária fora de ~/.kube: ferramentas como Freelens/Lens registram cada arquivo da pasta como cluster.
+CLUSTER_FILE="$(mktemp)"
+trap 'rm -f "$CLUSTER_FILE"' EXIT
 chmod 600 "$CLUSTER_FILE"
+printf '%s\n' "$CONTENT" > "$CLUSTER_FILE"
 
 # Mescla: o arquivo novo vem primeiro, então suas entradas (mesmo nome) substituem as antigas.
-SOURCES="$CLUSTER_FILE"
+# No Git Bash o kubectl é o do Windows: caminhos no formato do Windows e ";" como separador.
+if command -v cygpath >/dev/null; then
+  SEP=';'; to_native() { cygpath -w "$1"; }
+else
+  SEP=':'; to_native() { printf '%s' "$1"; }
+fi
+SOURCES="$(to_native "$CLUSTER_FILE")"
 if [ -f "$KUBECONFIG_PATH" ]; then
   cp "$KUBECONFIG_PATH" "$KUBECONFIG_PATH.bak"
-  SOURCES="$CLUSTER_FILE:$KUBECONFIG_PATH"
+  SOURCES="$SOURCES$SEP$(to_native "$KUBECONFIG_PATH")"
 fi
 MERGED="$(KUBECONFIG="$SOURCES" kubectl config view --flatten)"
 printf '%s\n' "$MERGED" > "$KUBECONFIG_PATH"

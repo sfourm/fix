@@ -48,7 +48,8 @@ if ($Tunnel) {
 
 $kubeDir = Split-Path -Parent $KubeconfigPath
 New-Item -ItemType Directory -Force -Path $kubeDir | Out-Null
-$clusterFile = Join-Path $kubeDir "$name.yaml"
+# Cópia intermediária fora de ~/.kube: ferramentas como Freelens/Lens registram cada arquivo da pasta como cluster.
+$clusterFile = Join-Path ([IO.Path]::GetTempPath()) "$name-$PID.yaml"
 [IO.File]::WriteAllText($clusterFile, $content, [Text.UTF8Encoding]::new($false))
 
 # Mescla: o arquivo novo vem primeiro, então suas entradas (mesmo nome) substituem as antigas.
@@ -64,6 +65,7 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'kubectl config view falhou.' }
 } finally {
   $env:KUBECONFIG = $previous
+  Remove-Item $clusterFile -Force -ErrorAction SilentlyContinue
 }
 [IO.File]::WriteAllText($KubeconfigPath, (($merged -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))
 kubectl config use-context $name --kubeconfig $KubeconfigPath | Out-Null
