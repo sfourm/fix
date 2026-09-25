@@ -1,0 +1,45 @@
+{{- if .Values.ingress.enabled }}
+{{- $i := .Values.ingress }}
+{{- $fullname := include "fix.fullname" . }}
+# Único ponto de entrada: /api → BFF, o resto → web (SPA). O core-service não é exposto.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullname }}
+  labels:
+    {{- include "fix.labels" (dict "ctx" . "component" "ingress") | nindent 4 }}
+  annotations:
+    {{- with $i.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if $i.tls.enabled }}
+    cert-manager.io/cluster-issuer: {{ $i.tls.clusterIssuer | quote }}
+    {{- end }}
+spec:
+  ingressClassName: {{ $i.className }}
+  {{- if and $i.tls.enabled $i.host }}
+  tls:
+    - hosts: [{{ $i.host | quote }}]
+      secretName: {{ $i.tls.secretName }}
+  {{- end }}
+  rules:
+    - {{- with $i.host }}
+      host: {{ . | quote }}
+      {{- end }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullname }}-bff
+                port:
+                  name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullname }}-web
+                port:
+                  name: http
+{{- end }}

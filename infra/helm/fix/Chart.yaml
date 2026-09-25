@@ -1,0 +1,8 @@
+apiVersion: v2
+name: fix
+description: Plataforma Fix (core-service, BFF, web) com PostgreSQL, Redis e Elasticsearch, exposta por ingress-nginx.
+type: application
+# A versão publicada pelo pipeline é 0.1.<run_number> (helm package --version); appVersion = SHA do commit.
+version: 0.1.0
+appVersion: "latest"
+keywords: [fix, commodities, grpc, dotnet, node, vue]

@@ -1,0 +1,97 @@
+{{- $name := printf "%s-bff" (include "fix.fullname" .) }}
+{{- $b := .Values.bff }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "fix.labels" (dict "ctx" . "component" "bff") | nindent 4 }}
+spec:
+  selector:
+    {{- include "fix.selectorLabels" (dict "ctx" . "component" "bff") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $b.port }}
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "fix.labels" (dict "ctx" . "component" "bff") | nindent 4 }}
+spec:
+  replicas: {{ $b.replicas }}
+  selector:
+    matchLabels:
+      {{- include "fix.selectorLabels" (dict "ctx" . "component" "bff") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "fix.selectorLabels" (dict "ctx" . "component" "bff") | nindent 8 }}
+    spec:
+      {{- include "fix.pullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      initContainers:
+        - name: wait-dependencies
+          image: busybox:1.37
+          securityContext: { runAsUser: 65534, runAsGroup: 65534, runAsNonRoot: true, allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z {{ include "fix.coreHost" . }} {{ .Values.coreService.port }}; do echo aguardando core-service; sleep 2; done
+              until wget -qO- http://{{ include "fix.elasticsearchHost" . }}:9200/_cluster/health >/dev/null 2>&1; do echo aguardando elasticsearch; sleep 3; done
+      containers:
+        - name: bff
+          image: {{ include "fix.image" (dict "ctx" . "component" "bff") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          ports:
+            - name: http
+              containerPort: {{ $b.port }}
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: {{ $b.port | quote }}
+            - name: CORE_GRPC_URL
+              value: "{{ include "fix.coreHost" . }}:{{ .Values.coreService.port }}"
+            - name: GRPC_CONTRACTS
+              value: files
+            - name: PROTOS_DIR
+              value: /app/protos
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secrets.name }}, key: session-secret }
+            - name: SESSION_TTL
+              value: {{ $b.sessionTtl | quote }}
+            - name: CORS_ORIGIN
+              value: {{ include "fix.publicUrl" . | quote }}
+            - name: ELASTICSEARCH_URL
+              value: "http://{{ include "fix.elasticsearchHost" . }}:9200"
+            - name: REDIS_URL
+              value: "redis://{{ include "fix.redisHost" . }}:6379"
+            - name: VIZ_CACHE_TTL_SECONDS
+              value: {{ $b.vizCacheTtlSeconds | quote }}
+            - name: OTEL_ENABLED
+              value: {{ .Values.telemetry.enabled | quote }}
+            {{- with .Values.telemetry.otlpHttpEndpoint }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ . | quote }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            {{- toYaml $b.resources | nindent 12 }}

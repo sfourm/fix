@@ -1,0 +1,27 @@
+# Copie para terraform.tfvars e ajuste. terraform.tfvars não é versionado.
+
+aws_region  = "us-east-1"
+# aws_profile = "minha-conta"      # perfil do AWS CLI; omita para usar as credenciais padrão
+environment = "presentation"
+
+github_repository = "sfourm/fix"
+# create_github_oidc_provider = false   # se a conta já tiver o OIDC provider do GitHub
+
+instance_type = "t3.medium"
+
+# Seu IP público para kubectl direto (porta 6443). Descubra com: curl -s https://checkip.amazonaws.com
+# Vazio = API fechada; use o túnel SSM (infra/scripts/kubeconfig.ps1 -Tunnel).
+admin_cidrs = ["203.0.113.10/32"]
+
+# Host público: vazio = fix.<ip-elástico>.nip.io
+domain_name = ""
+
+# HTTPS com Let's Encrypt
+enable_tls        = false
+letsencrypt_email = ""
+
+admin_email = "admin@fix.local"
+
+# Pacotes do GHCR privados? Informe um PAT com read:packages (ou deixe os pacotes públicos).
+# ghcr_username   = "sfourm"
+# ghcr_pull_token = "ghp_..."

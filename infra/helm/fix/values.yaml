@@ -1,0 +1,94 @@
+# Valores padrão do chart da plataforma Fix, dimensionados para um cluster pequeno de apresentação (1 nó, ~4 GB).
+# Valores do ambiente (host, TLS, segredo) ficam no nó em /etc/fix/values.yaml (gerado pelo Terraform).
+# Cada versão do chart publicada pelo GitHub Actions carrega as imagens do mesmo build: appVersion = SHA do commit.
+
+image:
+  # Imagens publicadas pelo GitHub Actions nos Packages do GitHub (GHCR): <registry>/<componente>:<tag>
+  registry: ghcr.io/sfourm/fix
+  # Vazio = appVersion do chart (a tag das imagens geradas no mesmo build). Informe só para forçar outra versão.
+  tag: ""
+  pullPolicy: IfNotPresent
+  # Ex.: [{ name: ghcr-pull }] quando os pacotes do GHCR forem privados (o bootstrap cria o secret).
+  pullSecrets: []
+
+ingress:
+  enabled: true
+  className: nginx
+  # Vazio = responde em qualquer host (acesso pelo IP). Ex.: fix.203.0.113.10.nip.io
+  host: ""
+  tls:
+    enabled: false
+    # ClusterIssuer do cert-manager (criado pelo bootstrap quando o TLS está ligado)
+    clusterIssuer: letsencrypt
+    secretName: fix-tls
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+
+secrets:
+  # Secret com postgres-password, session-secret, admin-email e admin-password.
+  # Em produção o bootstrap cria "fix-secrets" a partir do SSM Parameter Store; create=true é só para testes locais.
+  name: fix-secrets
+  create: false
+  values:
+    postgresPassword: ""
+    sessionSecret: ""
+    adminEmail: admin@fix.local
+    adminPassword: ""
+
+telemetry:
+  # Sem a stack de observabilidade no cluster, a telemetria fica desligada.
+  enabled: false
+  otlpGrpcEndpoint: ""   # core-service (ex.: http://otel-collector:4317)
+  otlpHttpEndpoint: ""   # BFF (ex.: http://otel-collector:4318)
+
+coreService:
+  replicas: 1
+  port: 5098
+  migrateOnStartup: true
+  adminFullName: Super Administrador
+  resources:
+    requests: { cpu: 100m, memory: 192Mi }
+    limits: { memory: 512Mi }
+
+bff:
+  replicas: 1
+  port: 3000
+  sessionTtl: 8h
+  vizCacheTtlSeconds: 30
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 384Mi }
+
+web:
+  replicas: 1
+  port: 8080
+  resources:
+    requests: { cpu: 10m, memory: 16Mi }
+    limits: { memory: 64Mi }
+
+postgres:
+  image: postgres:17
+  database: fix
+  username: fix
+  storage: 5Gi
+  storageClass: ""   # vazio = default do cluster (local-path no k3s)
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 512Mi }
+
+redis:
+  image: redis:8-alpine
+  maxMemory: 64mb
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { memory: 128Mi }
+
+elasticsearch:
+  image: docker.elastic.co/elasticsearch/elasticsearch:9.1.4
+  javaOpts: "-Xms384m -Xmx384m"
+  storage: 5Gi
+  storageClass: ""
+  resources:
+    requests: { cpu: 100m, memory: 768Mi }
+    limits: { memory: 1Gi }

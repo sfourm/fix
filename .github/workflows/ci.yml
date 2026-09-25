@@ -1,0 +1,82 @@
+name: CI
+
+# Em PRs roda sozinho; na main roda como primeira etapa do Deploy (workflow_call).
+on:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  core-service:
+    name: core-service (.NET)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Build e testes de domínio
+        working-directory: backend/core-service
+        run: |
+          dotnet build Fix.slnx -c Release
+          dotnet test Fix.slnx -c Release --no-build
+
+  bff:
+    name: BFF (Node)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/bff
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/bff/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  web:
+    name: Web (Vue)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/web/package-lock.json
+      - run: npm ci
+      - run: npm run build # vue-tsc + vite build
+
+  infra:
+    name: Helm e Terraform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.19.1
+      - name: helm lint / template
+        run: |
+          helm lint infra/helm/fix
+          helm template fix infra/helm/fix --set ingress.host=fix.example.com --set ingress.tls.enabled=true > /dev/null
+      - uses: hashicorp/setup-terraform@v3
+      - name: terraform fmt / validate
+        working-directory: infra/terraform
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false -input=false
+          terraform validate

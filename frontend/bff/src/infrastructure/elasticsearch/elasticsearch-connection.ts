@@ -49,9 +49,19 @@ export async function connectElasticsearch(url: string, prefix: string): Promise
   for (const key of Object.keys(indices) as (keyof BffIndices)[]) {
     const index = indices[key];
     if (!(await client.indices.exists({ index }))) {
-      await client.indices.create({ index, settings, mappings: mappings[key] });
+      await createIndexIfMissing(client, index, { settings, mappings: mappings[key] });
     }
   }
 
   return { client, indices };
+}
+
+/** Outra réplica do BFF subindo junto (deploy, rollout) pode criar o índice entre o `exists` e o `create`. */
+async function createIndexIfMissing(client: Client, index: string, body: Omit<estypes.IndicesCreateRequest, 'index'>): Promise<void> {
+  try {
+    await client.indices.create({ index, ...body });
+  } catch (error) {
+    const type = (error as { body?: { error?: { type?: string } } }).body?.error?.type;
+    if (type !== 'resource_already_exists_exception') throw error;
+  }
 }

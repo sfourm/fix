@@ -1,0 +1,92 @@
+{{- $name := include "fix.coreHost" . }}
+{{- $c := .Values.coreService }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "fix.labels" (dict "ctx" . "component" "core-service") | nindent 4 }}
+spec:
+  selector:
+    {{- include "fix.selectorLabels" (dict "ctx" . "component" "core-service") | nindent 4 }}
+  ports:
+    - name: grpc
+      port: {{ $c.port }}
+      targetPort: grpc
+      appProtocol: kubernetes.io/h2c
+---
+# core-service: gRPC interno (só o BFF acessa; não passa pelo Ingress).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "fix.labels" (dict "ctx" . "component" "core-service") | nindent 4 }}
+spec:
+  replicas: {{ $c.replicas }}
+  selector:
+    matchLabels:
+      {{- include "fix.selectorLabels" (dict "ctx" . "component" "core-service") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "fix.selectorLabels" (dict "ctx" . "component" "core-service") | nindent 8 }}
+    spec:
+      {{- include "fix.pullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+      initContainers:
+        - name: wait-postgres
+          image: busybox:1.37
+          securityContext: { runAsUser: 65534, runAsGroup: 65534, runAsNonRoot: true, allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          command: ["sh", "-c", "until nc -z {{ include "fix.postgresHost" . }} 5432; do echo aguardando postgres; sleep 2; done"]
+      containers:
+        - name: core-service
+          image: {{ include "fix.image" (dict "ctx" . "component" "core-service") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          ports:
+            - name: grpc
+              containerPort: {{ $c.port }}
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Production
+            - name: ASPNETCORE_URLS
+              value: "http://+:{{ $c.port }}"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secrets.name }}, key: postgres-password }
+            - name: ConnectionStrings__Database
+              value: "Host={{ include "fix.postgresHost" . }};Port=5432;Database={{ .Values.postgres.database }};Username={{ .Values.postgres.username }};Password=$(POSTGRES_PASSWORD)"
+            - name: Database__MigrateOnStartup
+              value: {{ $c.migrateOnStartup | quote }}
+            - name: Seed__SuperAdministrator__Email
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secrets.name }}, key: admin-email }
+            - name: Seed__SuperAdministrator__Password
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secrets.name }}, key: admin-password }
+            - name: Seed__SuperAdministrator__FullName
+              value: {{ $c.adminFullName | quote }}
+            - name: OpenTelemetry__Enabled
+              value: {{ .Values.telemetry.enabled | quote }}
+            {{- with .Values.telemetry.otlpGrpcEndpoint }}
+            - name: OpenTelemetry__OtlpEndpoint
+              value: {{ . | quote }}
+            {{- end }}
+          # Migrations rodam no startup: dá tempo antes de considerar o pod travado.
+          startupProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 20
+          resources:
+            {{- toYaml $c.resources | nindent 12 }}

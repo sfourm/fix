@@ -8,7 +8,7 @@ Setup da companhia → Política de riscos (aprovada em ata) → Mandatos (autor
 
 ```
 fix/
-├── .context        # Contexto do repositório: apps, arquitetura, padrões e convenções (leitura obrigatória antes de mudar código)
+├── .context/       # Contexto do repositório: produto, arquitetura de cada projeto, observabilidade e convenções (comece pelo README.md)
 ├── protos/         # Contratos gRPC (fonte única, consumida pelo backend e pelo BFF)
 ├── backend/        # APIs do backend, uma pasta por serviço
 │   └── core-service/  # Core em .NET 10 (Clean Architecture + DDD + CQS + gRPC)
@@ -16,6 +16,8 @@ fix/
 │   ├── bff/        # BFF em Node.js + TypeScript + Express (REST para o web, gRPC para o core)
 │   └── web/        # Vue 3 + Vite + TypeScript + Pinia + Vue Router
 ├── observability/  # Stack de telemetria e observabilidade (OTel Collector + Jaeger + Prometheus + Grafana)
+├── infra/          # Terraform (EC2 com k3s na AWS), chart Helm da plataforma e scripts do kubectl (ver infra/README.md)
+├── .github/        # Workflows: CI em PR; Deploy na main (imagens e chart no GHCR → helm upgrade no k3s)
 └── example/        # Protótipo HTML do FIX2 (referência de telas e regras)
 ```
 

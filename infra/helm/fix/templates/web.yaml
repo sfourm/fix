@@ -1,0 +1,55 @@
+{{- $name := printf "%s-web" (include "fix.fullname" .) }}
+{{- $w := .Values.web }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "fix.labels" (dict "ctx" . "component" "web") | nindent 4 }}
+spec:
+  selector:
+    {{- include "fix.selectorLabels" (dict "ctx" . "component" "web") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $w.port }}
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "fix.labels" (dict "ctx" . "component" "web") | nindent 4 }}
+spec:
+  replicas: {{ $w.replicas }}
+  selector:
+    matchLabels:
+      {{- include "fix.selectorLabels" (dict "ctx" . "component" "web") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "fix.selectorLabels" (dict "ctx" . "component" "web") | nindent 8 }}
+    spec:
+      {{- include "fix.pullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: web
+          image: {{ include "fix.image" (dict "ctx" . "component" "web") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          ports:
+            - name: http
+              containerPort: {{ $w.port }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+          resources:
+            {{- toYaml $w.resources | nindent 12 }}

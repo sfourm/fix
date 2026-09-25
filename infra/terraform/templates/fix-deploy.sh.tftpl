@@ -1,0 +1,53 @@
+#!/bin/bash
+# Deploy da plataforma Fix no k3s local. Chamado pelo GitHub Actions via SSM Run Command:
+#   fix-deploy <chart-oci> <chart-version> <image-tag>
+#   fix-deploy --login-only          # só renova o login no GHCR (pacotes privados)
+set -euo pipefail
+export PATH="/usr/local/bin:$PATH"
+export KUBECONFIG="$${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
+export HOME="$${HOME:-/root}"
+VALUES_FILE="$${FIX_VALUES_FILE:-/etc/fix/values.yaml}"
+STATE_DIR="$${FIX_STATE_DIR:-/var/lib/fix}"
+export AWS_DEFAULT_REGION="${aws_region}"
+SSM_PREFIX="${ssm_prefix}"
+
+param() { aws ssm get-parameter --name "$SSM_PREFIX/$1" --with-decryption --query Parameter.Value --output text 2>/dev/null || true; }
+
+ghcr_login() {
+  local user token
+  user="$(param ghcr-username)"
+  token="$(param ghcr-token)"
+  [ -n "$token" ] && [ "$token" != "None" ] || return 0
+  echo "$token" | helm registry login ghcr.io --username "$user" --password-stdin >/dev/null
+  kubectl -n fix create secret docker-registry ghcr-pull \
+    --docker-server=ghcr.io --docker-username="$user" --docker-password="$token" \
+    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  echo "login no GHCR renovado"
+}
+
+if [ "$${1:-}" = "--login-only" ]; then
+  ghcr_login
+  exit 0
+fi
+
+CHART="$${1:?informe o chart OCI}"
+VERSION="$${2:?informe a versão do chart}"
+TAG="$${3:?informe a tag das imagens}"
+
+# Entradas vêm do pipeline: valida o formato antes de usar.
+[[ "$CHART" =~ ^oci://ghcr\.io/[a-z0-9._/-]+$ ]] || { echo "chart inválido: $CHART"; exit 2; }
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]] || { echo "versão inválida: $VERSION"; exit 2; }
+[[ "$TAG" =~ ^[A-Za-z0-9._-]{1,128}$ ]] || { echo "tag inválida: $TAG"; exit 2; }
+
+[ -f "$STATE_DIR/bootstrap-done" ] || { echo "bootstrap do nó ainda não terminou"; exit 3; }
+
+ghcr_login
+echo "==> helm upgrade fix $CHART@$VERSION (imagens :$TAG)"
+helm upgrade --install fix "$CHART" --version "$VERSION" \
+  --namespace fix --create-namespace \
+  --values "$VALUES_FILE" \
+  --set image.tag="$TAG" \
+  --wait --timeout 12m --atomic
+
+kubectl -n fix get pods -o wide
+kubectl -n fix get ingress

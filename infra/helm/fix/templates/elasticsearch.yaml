@@ -1,0 +1,82 @@
+{{- $name := include "fix.elasticsearchHost" . }}
+{{- $e := .Values.elasticsearch }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "fix.labels" (dict "ctx" . "component" "elasticsearch") | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    {{- include "fix.selectorLabels" (dict "ctx" . "component" "elasticsearch") | nindent 4 }}
+  ports:
+    - name: http
+      port: 9200
+      targetPort: http
+---
+# Dashboards e filtros salvos do BFF. Nó único, sem segurança (acessível só dentro do cluster).
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "fix.labels" (dict "ctx" . "component" "elasticsearch") | nindent 4 }}
+spec:
+  serviceName: {{ $name }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "fix.selectorLabels" (dict "ctx" . "component" "elasticsearch") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "fix.selectorLabels" (dict "ctx" . "component" "elasticsearch") | nindent 8 }}
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: elasticsearch
+          image: {{ $e.image }}
+          env:
+            - name: discovery.type
+              value: single-node
+            - name: xpack.security.enabled
+              value: "false"
+            - name: xpack.ml.enabled
+              value: "false"
+            # Dispensa vm.max_map_count alto no nó (o bootstrap também ajusta o sysctl).
+            - name: node.store.allow_mmap
+              value: "false"
+            - name: ES_JAVA_OPTS
+              value: {{ $e.javaOpts | quote }}
+          ports:
+            - name: http
+              containerPort: 9200
+          readinessProbe:
+            httpGet:
+              path: /_cluster/health?local=true
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 90
+            periodSeconds: 20
+          resources:
+            {{- toYaml $e.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/elasticsearch/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with $e.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $e.storage }}

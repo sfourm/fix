@@ -1,0 +1,17 @@
+# Contexto de build das imagens = raiz do repositório (core e BFF precisam de protos/).
+**/node_modules
+**/dist
+**/bin
+**/obj
+**/.env
+**/*.log
+.git
+.github
+.vs
+.vscode
+.idea
+.context
+example
+observability
+infra
+**/test-results

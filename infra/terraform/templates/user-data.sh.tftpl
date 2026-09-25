@@ -1,0 +1,125 @@
+#!/bin/bash
+# Bootstrap do nó k3s da plataforma Fix (Amazon Linux 2023). Gerado pelo Terraform (templates/user-data.sh.tftpl).
+# Instala k3s (sem Traefik), Helm, ingress-nginx e (opcional) cert-manager; cria os segredos da aplicação a partir do
+# SSM Parameter Store, publica o kubeconfig para o kubectl local e instala o script de deploy chamado pelo GitHub Actions.
+# O deploy da aplicação em si (chart + imagens) é feito pelo pipeline.
+set -euo pipefail
+exec > >(tee -a /var/log/fix-bootstrap.log) 2>&1
+echo "==> bootstrap iniciado em $(date -Is)"
+
+export AWS_DEFAULT_REGION="${aws_region}"
+SSM_PREFIX="${ssm_prefix}"
+PUBLIC_IP="${public_ip}"
+CLUSTER_NAME="fix-$(basename "$SSM_PREFIX")"
+
+param() { aws ssm get-parameter --name "$SSM_PREFIX/$1" --with-decryption --query Parameter.Value --output text; }
+
+# ---------- Sistema ----------
+%{ if swap_size_mb > 0 ~}
+if [ ! -f /swapfile ]; then
+  dd if=/dev/zero of=/swapfile bs=1M count=${swap_size_mb} status=none
+  chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+  echo "/swapfile none swap sw 0 0" >> /etc/fstab
+fi
+%{ endif ~}
+# Elasticsearch; e vm.swappiness baixo para usar swap só em pico.
+cat > /etc/sysctl.d/90-fix.conf <<'EOF'
+vm.max_map_count = 262144
+vm.swappiness = 10
+EOF
+sysctl --system >/dev/null
+
+# ---------- k3s ----------
+# Só --tls-san com o IP elástico (kubectl externo). Não usar --node-external-ip: a API passaria a ser anunciada no IP
+# elástico e os pods não a alcançam (a AWS não faz hairpin do EIP para a própria instância).
+if ! command -v k3s >/dev/null; then
+  curl -sfL https://get.k3s.io | \
+    INSTALL_K3S_VERSION="${k3s_version}" \
+    INSTALL_K3S_SKIP_SELINUX_RPM=true \
+    INSTALL_K3S_EXEC="server --disable traefik --write-kubeconfig-mode 600 --tls-san $PUBLIC_IP" \
+    sh -
+fi
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+until kubectl get nodes 2>/dev/null | grep -q " Ready"; do echo "aguardando o nó ficar Ready"; sleep 5; done
+ln -sf /usr/local/bin/kubectl /usr/bin/kubectl 2>/dev/null || true
+
+# ---------- Helm ----------
+if ! command -v helm >/dev/null; then
+  curl -sfL "https://get.helm.sh/helm-${helm_version}-linux-amd64.tar.gz" | tar -xz -C /tmp
+  install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
+fi
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx >/dev/null
+%{ if enable_tls ~}
+helm repo add jetstack https://charts.jetstack.io >/dev/null
+%{ endif ~}
+helm repo update >/dev/null
+
+# ---------- ingress-nginx (Service LoadBalancer → ServiceLB do k3s publica 80/443 no nó) ----------
+helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+  --version "${ingress_nginx_chart_version}" \
+  --namespace ingress-nginx --create-namespace \
+  --set controller.ingressClassResource.default=true \
+  --set controller.config.use-forwarded-headers="true" \
+  --set controller.resources.requests.cpu=50m \
+  --set controller.resources.requests.memory=96Mi \
+  --set controller.resources.limits.memory=256Mi \
+  --wait --timeout 10m
+
+%{ if enable_tls ~}
+# ---------- cert-manager + Let's Encrypt (HTTP-01 pelo ingress-nginx) ----------
+helm upgrade --install cert-manager jetstack/cert-manager \
+  --version "${cert_manager_chart_version}" \
+  --namespace cert-manager --create-namespace \
+  --set crds.enabled=true \
+  --set resources.requests.cpu=10m --set resources.requests.memory=32Mi \
+  --wait --timeout 10m
+cat <<'EOF' | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ${letsencrypt_email}
+    privateKeySecretRef:
+      name: letsencrypt-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx
+EOF
+%{ endif ~}
+
+# ---------- Segredos da aplicação (SSM → Secret fix-secrets) ----------
+kubectl create namespace fix --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n fix create secret generic fix-secrets \
+  --from-literal=postgres-password="$(param postgres-password)" \
+  --from-literal=session-secret="$(param session-secret)" \
+  --from-literal=admin-email="$(param admin-email)" \
+  --from-literal=admin-password="$(param admin-password)" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# ---------- Valores do ambiente e scripts de deploy ----------
+mkdir -p /etc/fix
+cat > /etc/fix/values.yaml <<'EOF'
+${values_yaml}
+EOF
+cat > /usr/local/bin/fix-deploy <<'EOF'
+${deploy_script}
+EOF
+chmod 0755 /usr/local/bin/fix-deploy
+%{ if use_ghcr_auth ~}
+/usr/local/bin/fix-deploy --login-only
+%{ endif ~}
+
+# ---------- kubeconfig para o kubectl local (SSM SecureString, lido por infra/scripts/kubeconfig.*) ----------
+sed -e "s#https://127.0.0.1:6443#https://$PUBLIC_IP:6443#" \
+    -e "s#: default\$#: $CLUSTER_NAME#" \
+    /etc/rancher/k3s/k3s.yaml > /root/kubeconfig-external.yaml
+aws ssm put-parameter --name "$SSM_PREFIX/kubeconfig" --type SecureString --tier Intelligent-Tiering --overwrite \
+  --value "file:///root/kubeconfig-external.yaml" >/dev/null
+rm -f /root/kubeconfig-external.yaml
+
+mkdir -p /var/lib/fix && date -Is > /var/lib/fix/bootstrap-done
+echo "==> bootstrap concluído em $(date -Is). Aguardando o deploy pelo GitHub Actions (host: ${host})."

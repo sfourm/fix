@@ -1,0 +1,11 @@
+# Valores do ambiente (gerados pelo Terraform). A versão das imagens vem do pipeline (--set image.tag=<sha>).
+image:
+  registry: ${image_registry}
+%{ if use_ghcr_auth ~}
+  pullSecrets:
+    - name: ghcr-pull
+%{ endif ~}
+ingress:
+  host: "${host}"
+  tls:
+    enabled: ${enable_tls}

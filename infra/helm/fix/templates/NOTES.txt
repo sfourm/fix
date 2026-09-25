@@ -1,0 +1,8 @@
+Fix {{ include "fix.imageTag" . }} instalado no namespace {{ .Release.Namespace }}.
+
+Acesso: {{ if .Values.ingress.host }}{{ include "fix.publicUrl" . }}{{ else }}http://<IP público do nó>{{ end }}
+Super administrador: e-mail e senha no secret {{ .Values.secrets.name }} (chaves admin-email / admin-password).
+
+Acompanhar:
+  kubectl -n {{ .Release.Namespace }} get pods
+  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "fix.fullname" . }}-core-service
