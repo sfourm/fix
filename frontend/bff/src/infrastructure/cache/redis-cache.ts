@@ -1,7 +1,38 @@
+import { metrics, SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
 import { createClient, type RedisClientType } from 'redis';
 import type { CachePort } from '../../application/common/cache.port.js';
 
 const KEY_PREFIX = 'fix:';
+
+// O node-redis 5+ não tem instrumentação automática: spans e métricas do cache são emitidos aqui.
+const tracer = trace.getTracer('fix-bff.cache');
+const lookups = metrics.getMeter('fix-bff').createCounter('cache_lookups_total', {
+  description: 'Leituras do cache de visualização por resultado (hit/miss/error)',
+});
+
+/** Nome do "conjunto" da chave sem ids (`viz:{org}:rows:{user}:orders` → `viz:rows`), para span e métrica. */
+function keyspace(key: string): string {
+  return key
+    .split(':')
+    .filter((part) => part && !/^[0-9a-f-]{32,36}$/i.test(part))
+    .slice(0, 2)
+    .join(':');
+}
+
+async function traced<T>(operation: string, key: string, run: () => Promise<T>): Promise<T> {
+  return tracer.startActiveSpan(`redis ${operation} ${keyspace(key)}`, { kind: SpanKind.CLIENT }, async (span) => {
+    span.setAttributes({ 'db.system.name': 'redis', 'db.operation.name': operation, 'fix.cache.keyspace': keyspace(key) });
+    try {
+      return await run();
+    } catch (error) {
+      span.recordException(error as Error);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error).message });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
+}
 
 /**
  * Cache de visualização no Redis. Indisponibilidade do Redis não derruba o BFF:
@@ -29,9 +60,11 @@ export class RedisCache implements CachePort {
   async get<T>(key: string): Promise<T | null> {
     if (!this.client.isReady) return null;
     try {
-      const raw = await this.client.get(KEY_PREFIX + key);
+      const raw = await traced('GET', key, () => this.client.get(KEY_PREFIX + key));
+      lookups.add(1, { keyspace: keyspace(key), result: raw === null ? 'miss' : 'hit' });
       return raw === null ? null : (JSON.parse(raw) as T);
     } catch (error) {
+      lookups.add(1, { keyspace: keyspace(key), result: 'error' });
       this.warn(error as Error);
       return null;
     }
@@ -40,7 +73,7 @@ export class RedisCache implements CachePort {
   async set(key: string, value: unknown, ttlSeconds: number): Promise<void> {
     if (!this.client.isReady || ttlSeconds <= 0) return;
     try {
-      await this.client.set(KEY_PREFIX + key, JSON.stringify(value), { expiration: { type: 'EX', value: ttlSeconds } });
+      await traced('SET', key, () => this.client.set(KEY_PREFIX + key, JSON.stringify(value), { expiration: { type: 'EX', value: ttlSeconds } }));
     } catch (error) {
       this.warn(error as Error);
     }
@@ -49,14 +82,17 @@ export class RedisCache implements CachePort {
   async invalidate(prefix: string): Promise<void> {
     if (!this.client.isReady) return;
     try {
-      const keys: string[] = [];
-      for await (const batch of this.client.scanIterator({ MATCH: `${KEY_PREFIX}${prefix}*`, COUNT: 200 })) {
-        keys.push(...batch);
-      }
+      await traced('INVALIDATE', prefix, async () => {
+        const keys: string[] = [];
+        for await (const batch of this.client.scanIterator({ MATCH: `${KEY_PREFIX}${prefix}*`, COUNT: 200 })) {
+          keys.push(...batch);
+        }
 
-      if (keys.length > 0) {
-        await this.client.del(keys);
-      }
+        if (keys.length > 0) {
+          await this.client.del(keys);
+        }
+        trace.getActiveSpan()?.setAttribute('fix.cache.deleted_keys', keys.length);
+      });
     } catch (error) {
       this.warn(error as Error);
     }

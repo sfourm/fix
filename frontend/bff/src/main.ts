@@ -1,4 +1,3 @@
-import './telemetry.js';
 import { shutdownTelemetry } from './telemetry.js';
 import { AuthService } from './application/auth/services/auth.service.js';
 import { ActorResolver } from './application/common/actor-resolver.js';

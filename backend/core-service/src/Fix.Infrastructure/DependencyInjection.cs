@@ -12,6 +12,7 @@ using Fix.Infrastructure.Identity;
 using Fix.Infrastructure.Persistence;
 using Fix.Infrastructure.Persistence.Auditing;
 using Fix.Infrastructure.Persistence.Repositories;
+using Fix.Infrastructure.Persistence.Telemetry;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -30,7 +31,7 @@ public static class DependencyInjection
         services.AddScoped<AuditingInterceptor>();
 
         services.AddDbContext<FixDbContext>((provider, options) => options
-            .UseNpgsql(connectionString)
+            .UseNpgsql(connectionString, npgsql => npgsql.ConfigureDataSource(dataSource => dataSource.ConfigureTracing(SqlCommandTelemetry.Configure)))
             .UseSnakeCaseNamingConvention()
             .AddInterceptors(provider.GetRequiredService<AuditingInterceptor>()));
 

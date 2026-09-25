@@ -1,3 +1,6 @@
+# Nome fixo do projeto: não depende da pasta (backend/core-service) e não colide com as outras APIs do backend.
+name: fix-core-service
+
 services:
   postgres:
     image: postgres:17
@@ -18,3 +21,4 @@ services:
 
 volumes:
   fix-postgres-data:
+    name: fix-core-service-postgres-data

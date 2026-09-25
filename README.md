@@ -8,8 +8,10 @@ Setup da companhia → Política de riscos (aprovada em ata) → Mandatos (autor
 
 ```
 fix/
+├── .context        # Contexto do repositório: apps, arquitetura, padrões e convenções (leitura obrigatória antes de mudar código)
 ├── protos/         # Contratos gRPC (fonte única, consumida pelo backend e pelo BFF)
-├── backend/        # Core em .NET 10 (Clean Architecture + DDD + CQS + gRPC)
+├── backend/        # APIs do backend, uma pasta por serviço
+│   └── core-service/  # Core em .NET 10 (Clean Architecture + DDD + CQS + gRPC)
 ├── frontend/
 │   ├── bff/        # BFF em Node.js + TypeScript + Express (REST para o web, gRPC para o core)
 │   └── web/        # Vue 3 + Vite + TypeScript + Pinia + Vue Router
@@ -24,7 +26,7 @@ fix/
 cd observability && docker compose up -d                                           # Grafana :3001, Jaeger :16686
 
 # 1. Banco + core
-cd backend && docker compose up -d && dotnet run --project src/Fix.Presentation   # gRPC :5098
+cd backend/core-service && docker compose up -d && dotnet run --project src/Fix.Presentation   # gRPC :5098
 
 # 2. BFF (outro terminal): Elasticsearch + Redis e o BFF
 cd frontend/bff && docker compose up -d && npm install && npm run dev             # http://localhost:3000
@@ -89,6 +91,11 @@ com o nome da entidade como prefixo dos campos (`PolicyAxis.Title`).
 
 ## Backend
 
+O backend agrupa as APIs por serviço em `backend/<serviço>/`, cada uma com solução, `Directory.Build.props`, ferramentas
+e `docker-compose.yml` próprios. Hoje existe o `core-service` (abaixo); novas APIs entram como pastas irmãs.
+
+### core-service (`backend/core-service`)
+
 | Camada | Projeto | Responsabilidade |
 | --- | --- | --- |
 | Presentation | `Fix.Presentation` | Serviços gRPC, server reflection, mapeamento contrato ↔ DTO, tradução de erros para status gRPC |
@@ -120,8 +127,8 @@ além da role (`approve_mandate`/`approve_order`): ramo lateral ou mesmo nível 
 e quem não está em grupo algum fica na base do organograma. A equipe interna FIX não decide em organizações clientes.
 
 ```bash
-cd backend
-docker compose up -d                       # PostgreSQL em localhost:5432 (fix/fix)
+cd backend/core-service
+docker compose up -d                       # PostgreSQL em localhost:5432 (fix/fix), projeto compose fix-core-service
 dotnet run --project src/Fix.Presentation  # gRPC em http://localhost:5098 (HTTP/2); migrations e seed em Development
 dotnet test                                # testes de domínio
 dotnet ef migrations add <Nome> -p src/Fix.Infrastructure -s src/Fix.Presentation -o Persistence/Migrations
@@ -221,7 +228,6 @@ Menu lateral com quatro áreas, cada uma com a sua barra de abas:
 - **Organização**: Setup da companhia (identificação, orçamento/gatilhos, capacidade, commodities, financeiro), Contrapartes e Timeline.
 - Listagens de **Mandatos** e **Boletas** usam a pesquisa do BFF com barra de filtros: condições avulsas e filtros salvos (privados ou públicos).
 - Em organização cliente acessada pela equipe interna aparece o aviso "Acesso de suporte FIX".
-- **4 · Acompanhar**: Timeline.
 
 Botões aparecem conforme as roles do usuário, mas quem autoriza de fato é o core.
 

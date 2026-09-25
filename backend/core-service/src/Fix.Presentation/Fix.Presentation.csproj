@@ -2,7 +2,7 @@
 
   <ItemGroup>
     <!-- Contratos compartilhados com o BFF: /protos na raiz do repositório -->
-    <Protobuf Include="..\..\..\protos\**\*.proto" ProtoRoot="..\..\..\protos" GrpcServices="Server" Link="Protos\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Protobuf Include="..\..\..\..\protos\**\*.proto" ProtoRoot="..\..\..\..\protos" GrpcServices="Server" Link="Protos\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

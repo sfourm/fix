@@ -11,6 +11,8 @@ scrape_configs:
     static_configs:
       - targets: ["otel-collector:8888"]
 
+  # honor_labels: o job de cada série é o serviço (fix-bff, fix-backend), não o nome do scrape.
   - job_name: "fix-services"
+    honor_labels: true
     static_configs:
       - targets: ["otel-collector:8889"]

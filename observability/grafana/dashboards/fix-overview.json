@@ -49,7 +49,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -82,7 +82,7 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
           "expr": "count(count by (job) (up == 1))",
           "legendFormat": "Serviços UP",
@@ -94,7 +94,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -125,7 +125,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
           "expr": "sum(rate(http_server_request_duration_seconds_count[1m])) or sum(rate(otelcol_receiver_accepted_spans[1m])) or vector(0)",
           "legendFormat": "Req/s Total",
@@ -137,7 +137,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -170,7 +170,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket[5m])) by (le)) or vector(0)",
           "legendFormat": "P95 Latência",
@@ -182,7 +182,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -214,7 +214,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
           "expr": "sum(increase(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\"}[5m])) or vector(0)",
           "legendFormat": "Erros 5xx",
@@ -233,7 +233,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -251,18 +251,18 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum by (job, service_name, http_route) (rate(http_server_request_duration_seconds_count[1m]))",
-          "legendFormat": "{{service_name}} - {{http_route}}",
+          "expr": "sum by (job, http_route) (rate(http_server_request_duration_seconds_count[1m]))",
+          "legendFormat": "{{job}} - {{http_route}}",
           "range": true,
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum by (service_name) (rate(otelcol_receiver_accepted_spans[1m]))",
-          "legendFormat": "Spans OTel ({{service_name}})",
+          "expr": "sum by (job) (rate(otelcol_receiver_accepted_spans[1m]))",
+          "legendFormat": "Spans OTel ({{job}})",
           "range": true,
           "refId": "B"
         }
@@ -271,7 +271,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -289,26 +289,26 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum(rate(http_server_request_duration_seconds_bucket[1m])) by (le, service_name))",
-          "legendFormat": "p50 - {{service_name}}",
+          "expr": "histogram_quantile(0.50, sum(rate(http_server_request_duration_seconds_bucket[1m])) by (le, job))",
+          "legendFormat": "p50 - {{job}}",
           "range": true,
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket[1m])) by (le, service_name))",
-          "legendFormat": "p95 - {{service_name}}",
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket[1m])) by (le, job))",
+          "legendFormat": "p95 - {{job}}",
           "range": true,
           "refId": "B"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum(rate(http_server_request_duration_seconds_bucket[1m])) by (le, service_name))",
-          "legendFormat": "p99 - {{service_name}}",
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_request_duration_seconds_bucket[1m])) by (le, job))",
+          "legendFormat": "p99 - {{job}}",
           "range": true,
           "refId": "C"
         }
@@ -324,7 +324,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "custom": { "drawStyle": "line" },
@@ -338,7 +338,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
           "expr": "sum by (receiver, transport) (rate(otelcol_receiver_accepted_spans[1m]))",
           "legendFormat": "Spans aceitos ({{receiver}}/{{transport}})",
@@ -346,7 +346,7 @@
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
           "expr": "sum by (receiver) (rate(otelcol_receiver_accepted_metric_points[1m]))",
           "legendFormat": "Métricas aceitas ({{receiver}})",
@@ -358,7 +358,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "custom": { "drawStyle": "line" },
@@ -372,7 +372,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
           "expr": "sum by (exporter) (rate(otelcol_exporter_sent_spans[1m]))",
           "legendFormat": "Spans enviados ({{exporter}})",
@@ -380,7 +380,7 @@
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
           "expr": "sum by (exporter) (rate(otelcol_exporter_sent_metric_points[1m]))",
           "legendFormat": "Métricas enviadas ({{exporter}})",

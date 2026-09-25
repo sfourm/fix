@@ -55,6 +55,7 @@ public static class TelemetryExtensions
                 metrics
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
+                    .AddNpgsqlInstrumentation()
                     .AddMeter(serviceName)
                     .AddOtlpExporter(options =>
                     {
