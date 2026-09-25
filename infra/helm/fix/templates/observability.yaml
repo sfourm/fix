@@ -331,6 +331,9 @@ data:
         type: file
         disableDeletion: false
         editable: true
+        # Salvar pela interface grava no banco do Grafana (volume persistente); o JSON do repositório volta a valer
+        # quando mudar. Para manter uma edição: exporte para observability/grafana/dashboards e faça commit.
+        allowUiUpdates: true
         options:
           path: /etc/grafana/dashboards
 ---

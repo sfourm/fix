@@ -7,5 +7,8 @@ providers:
     type: file
     disableDeletion: false
     editable: true
+    # Salvar pela interface grava no banco do Grafana (sem pedir download do JSON). A versão do arquivo volta a valer
+    # quando o JSON do repositório mudar; para manter uma edição, exporte o JSON para grafana/dashboards/ e faça commit.
+    allowUiUpdates: true
     options:
       path: /var/lib/grafana/dashboards
