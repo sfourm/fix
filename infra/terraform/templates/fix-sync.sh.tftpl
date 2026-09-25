@@ -14,6 +14,8 @@ SSM_PREFIX="${ssm_prefix}"
 param() { aws ssm get-parameter --name "$SSM_PREFIX/$1" --with-decryption --query Parameter.Value --output text 2>/dev/null || true; }
 
 kubectl create namespace fix --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+secrets_hash() { kubectl -n fix get secret fix-secrets -o jsonpath='{.data}' 2>/dev/null | sha256sum; }
+BEFORE="$(secrets_hash)"
 
 # Segredos da aplicação (SSM → Secret fix-secrets)
 kubectl -n fix create secret generic fix-secrets \
@@ -51,6 +53,9 @@ if [ -n "$TOKEN" ]; then
   echo "credencial do GHCR atualizada (secret fix/ghcr-pull)"
 fi
 
-# Se os segredos mudaram, reinicia quem os lê (no primeiro boot a aplicação ainda não existe).
-kubectl -n fix rollout restart deploy 2>/dev/null || true
+# Só reinicia a aplicação se os segredos mudaram (no primeiro boot ela ainda não existe).
+if [ "$BEFORE" != "$(secrets_hash)" ] && kubectl -n fix get deploy -o name 2>/dev/null | grep -q .; then
+  kubectl -n fix rollout restart deploy >/dev/null
+  echo "segredos alterados: aplicação reiniciada"
+fi
 echo "sincronizado a partir do SSM ($SSM_PREFIX)"
