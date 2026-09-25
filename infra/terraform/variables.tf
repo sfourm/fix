@@ -106,14 +106,26 @@ variable "domain_name" {
   default     = ""
 }
 
+variable "grafana_domain_name" {
+  description = "Host público do Grafana (a UI do Jaeger fica em <host>/jaeger). Vazio = grafana.<domain_name>."
+  type        = string
+  default     = ""
+}
+
+variable "enable_observability" {
+  description = "Roda no cluster a stack de observabilidade (OTel Collector, Prometheus, Jaeger e Grafana) e liga a telemetria das apps."
+  type        = bool
+  default     = true
+}
+
 variable "enable_tls" {
-  description = "Instala o cert-manager e emite certificado Let's Encrypt para o host (HTTPS)."
+  description = "HTTPS com certificados do Let's Encrypt (cert-manager) para o portal e o Grafana. Exige DNS apontando para o IP elástico."
   type        = bool
   default     = false
 }
 
 variable "letsencrypt_email" {
-  description = "E-mail de contato do Let's Encrypt (obrigatório com enable_tls)."
+  description = "E-mail de contato do Let's Encrypt (avisos de expiração). Vazio = cadastro sem e-mail."
   type        = string
   default     = ""
 }

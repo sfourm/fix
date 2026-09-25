@@ -49,3 +49,18 @@ imagePullSecrets:
 {{- define "fix.redisHost" -}}{{ include "fix.fullname" . }}-redis{{- end -}}
 {{- define "fix.elasticsearchHost" -}}{{ include "fix.fullname" . }}-elasticsearch{{- end -}}
 {{- define "fix.coreHost" -}}{{ include "fix.fullname" . }}-core-service{{- end -}}
+
+{{/* Telemetria: ligada explicitamente ou quando a stack de observabilidade roda no cluster. */}}
+{{- define "fix.telemetryEnabled" -}}
+{{- or .Values.telemetry.enabled .Values.observability.enabled -}}
+{{- end -}}
+
+{{- define "fix.collectorHost" -}}{{ include "fix.fullname" . }}-otel-collector{{- end -}}
+
+{{- define "fix.otlpGrpcEndpoint" -}}
+{{- .Values.telemetry.otlpGrpcEndpoint | default (ternary (printf "http://%s:4317" (include "fix.collectorHost" .)) "" .Values.observability.enabled) -}}
+{{- end -}}
+
+{{- define "fix.otlpHttpEndpoint" -}}
+{{- .Values.telemetry.otlpHttpEndpoint | default (ternary (printf "http://%s:4318" (include "fix.collectorHost" .)) "" .Values.observability.enabled) -}}
+{{- end -}}

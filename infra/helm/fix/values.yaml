@@ -18,7 +18,7 @@ ingress:
   host: ""
   tls:
     enabled: false
-    # ClusterIssuer do cert-manager (criado pelo bootstrap quando o TLS está ligado)
+    # ClusterIssuer do cert-manager (criado pelo fix-deploy no nó); vale para o portal e para o Grafana
     clusterIssuer: letsencrypt
     secretName: fix-tls
   annotations:
@@ -26,8 +26,8 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
 
 secrets:
-  # Secret com postgres-password, session-secret, admin-email e admin-password.
-  # Em produção o bootstrap cria "fix-secrets" a partir do SSM Parameter Store; create=true é só para testes locais.
+  # Secret com postgres-password, session-secret, admin-email, admin-password e grafana-admin-password.
+  # Em produção o fix-deploy cria "fix-secrets" a partir do SSM Parameter Store; create=true é só para testes locais.
   name: fix-secrets
   create: false
   values:
@@ -35,12 +35,48 @@ secrets:
     sessionSecret: ""
     adminEmail: admin@fix.local
     adminPassword: ""
+    grafanaAdminPassword: ""
 
 telemetry:
-  # Sem a stack de observabilidade no cluster, a telemetria fica desligada.
+  # Com observability.enabled a telemetria liga sozinha e aponta para o coletor do cluster.
+  # Use os campos abaixo só para mandar para um coletor externo.
   enabled: false
   otlpGrpcEndpoint: ""   # core-service (ex.: http://otel-collector:4317)
   otlpHttpEndpoint: ""   # BFF (ex.: http://otel-collector:4318)
+
+# Stack de observabilidade no cluster (mesma de observability/ no repositório): OTel Collector, Prometheus, Jaeger e Grafana.
+# Os dashboards vêm de observability/grafana/dashboards (copiados para files/dashboards ao empacotar o chart).
+observability:
+  enabled: false
+  grafana:
+    image: grafana/grafana:13.2.2
+    # Host público (ex.: grafana.fix.webpassos.com). O Jaeger fica em <host>/jaeger, só para quem está logado no Grafana.
+    host: ""
+    adminUser: admin
+    storage: 1Gi
+    resources:
+      requests: { cpu: 20m, memory: 128Mi }
+      # A primeira inicialização (migrations do banco interno) passa de 256 MB.
+      limits: { memory: 384Mi }
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.161.0
+    resources:
+      requests: { cpu: 20m, memory: 64Mi }
+      limits: { memory: 256Mi }
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    retention: 2d
+    storage: 2Gi
+    resources:
+      requests: { cpu: 20m, memory: 128Mi }
+      limits: { memory: 384Mi }
+  jaeger:
+    image: jaegertracing/all-in-one:1.76.0
+    # Traces em memória (reiniciar o pod apaga o histórico).
+    maxTraces: 5000
+    resources:
+      requests: { cpu: 20m, memory: 96Mi }
+      limits: { memory: 384Mi }
 
 coreService:
   replicas: 1

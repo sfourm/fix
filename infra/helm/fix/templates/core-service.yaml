@@ -69,8 +69,8 @@ spec:
             - name: Seed__SuperAdministrator__FullName
               value: {{ $c.adminFullName | quote }}
             - name: OpenTelemetry__Enabled
-              value: {{ .Values.telemetry.enabled | quote }}
-            {{- with .Values.telemetry.otlpGrpcEndpoint }}
+              value: {{ include "fix.telemetryEnabled" . | quote }}
+            {{- with include "fix.otlpGrpcEndpoint" . }}
             - name: OpenTelemetry__OtlpEndpoint
               value: {{ . | quote }}
             {{- end }}

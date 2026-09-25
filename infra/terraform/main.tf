@@ -9,6 +9,7 @@ locals {
 
   public_ip     = aws_eip.node.public_ip
   host          = var.domain_name != "" ? var.domain_name : "fix.${local.public_ip}.nip.io"
+  grafana_host  = var.grafana_domain_name != "" ? var.grafana_domain_name : "grafana.${local.host}"
   use_ghcr_auth = var.ghcr_pull_token != ""
 }
 
@@ -150,6 +151,42 @@ resource "aws_ssm_parameter" "admin_password" {
   name  = "${local.ssm_prefix}/admin-password"
   type  = "SecureString"
   value = random_password.admin.result
+}
+
+resource "random_password" "grafana_admin" {
+  length           = 20
+  min_upper        = 2
+  min_lower        = 2
+  min_numeric      = 2
+  min_special      = 1
+  override_special = "@#%*-_"
+}
+
+resource "aws_ssm_parameter" "grafana_admin_password" {
+  name  = "${local.ssm_prefix}/grafana-admin-password"
+  type  = "SecureString"
+  value = random_password.grafana_admin.result
+}
+
+# "-" = sem e-mail (o SSM não aceita valor vazio).
+resource "aws_ssm_parameter" "letsencrypt_email" {
+  name  = "${local.ssm_prefix}/letsencrypt-email"
+  type  = "String"
+  value = var.letsencrypt_email != "" ? var.letsencrypt_email : "-"
+}
+
+# Valores do chart para este ambiente: o fix-deploy lê a cada deploy (mudar aqui não recria a instância).
+resource "aws_ssm_parameter" "helm_values" {
+  name = "${local.ssm_prefix}/helm-values"
+  type = "String"
+  value = templatefile("${path.module}/templates/values.yaml.tftpl", {
+    image_registry       = local.image_registry
+    host                 = local.host
+    grafana_host         = local.grafana_host
+    enable_tls           = var.enable_tls
+    enable_observability = var.enable_observability
+    use_ghcr_auth        = local.use_ghcr_auth
+  })
 }
 
 resource "aws_ssm_parameter" "ghcr_username" {

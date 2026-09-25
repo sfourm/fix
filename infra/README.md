@@ -1,6 +1,7 @@
 # Infraestrutura: cluster k3s na AWS (apresentação)
 
-Um nó EC2 pequeno com **k3s** (Kubernetes), **Helm**, **ingress-nginx** e, opcionalmente, **cert-manager** (HTTPS).
+Um nó EC2 pequeno com **k3s** (Kubernetes), **Helm**, **ingress-nginx** e **cert-manager** (HTTPS com Let's Encrypt), com a
+stack de observabilidade (OTel Collector, Prometheus, Jaeger e **Grafana**) rodando no próprio cluster.
 A plataforma Fix (core-service, BFF, web, PostgreSQL, Redis, Elasticsearch) é instalada pelo chart `helm/fix`.
 Imagens e chart ficam no **GHCR**; o **GitHub Actions** publica e faz o deploy. O cluster fica disponível no seu `kubectl`.
 
@@ -96,7 +97,11 @@ No modo túnel, mantenha aberto em outro terminal:
 
 ## 5. Acessar a aplicação
 
-- URL: `terraform output app_url` → `http://fix.<ip>.nip.io` (ou o `domain_name`; `https` com `enable_tls`).
+- Portal: `terraform output app_url` (ex.: `https://fix.webpassos.com.br`; sem `domain_name`, `http://fix.<ip>.nip.io`).
+- Grafana: `terraform output grafana_url` (ex.: `https://grafana.fix.webpassos.com.br`), usuário `admin`, senha em
+  `terraform output -raw grafana_admin_password`. UI do Jaeger em `<grafana_url>/jaeger` (exige login no Grafana).
+- DNS: `terraform output dns_records` lista os registros A (todos para o IP elástico). O certificado do Let's Encrypt sai
+  sozinho depois que o DNS aponta para o IP.
 - Super administrador FIX: `terraform output super_admin_email` e `terraform output -raw super_admin_password`.
 
 ## Segurança
@@ -114,7 +119,9 @@ No modo túnel, mantenha aberto em outro terminal:
 | --- | --- |
 | Ver o que rodou no deploy | Resumo do job no GitHub Actions, ou `helm -n fix history fix` |
 | Voltar uma versão | `helm -n fix rollback fix <revisão>` |
-| Trocar um segredo | Altere o parâmetro no SSM, recrie o Secret `fix-secrets` no nó (mesmo comando do bootstrap) e `kubectl -n fix rollout restart deploy`. A senha do PostgreSQL só vale na criação do volume |
+| Trocar domínio, TLS ou observabilidade | Ajuste o `terraform.tfvars`, `terraform apply` (só atualiza o SSM) e rode um novo deploy |
+| Trocar um segredo | Altere o parâmetro no SSM e rode um novo deploy (o `fix-deploy` recria o Secret) + `kubectl -n fix rollout restart deploy`. As senhas do PostgreSQL e do admin do Grafana só valem na criação dos volumes |
+| Editar dashboards do Grafana | Edite `observability/grafana/dashboards/*.json` e faça push: o pipeline copia para o chart e o deploy atualiza o Grafana |
 | Recriar o nó do zero | `terraform apply -replace=aws_instance.node` (os dados dos volumes do k3s são perdidos) e rodar o deploy de novo |
 | Desligar tudo | `terraform destroy` |
 

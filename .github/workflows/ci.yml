@@ -71,8 +71,14 @@ jobs:
           version: v3.19.1
       - name: helm lint / template
         run: |
+          mkdir -p infra/helm/fix/files/dashboards
+          cp observability/grafana/dashboards/*.json infra/helm/fix/files/dashboards/
           helm lint infra/helm/fix
           helm template fix infra/helm/fix --set ingress.host=fix.example.com --set ingress.tls.enabled=true > /dev/null
+          helm template fix infra/helm/fix --set observability.enabled=true --set observability.grafana.host=grafana.example.com \
+            --set ingress.tls.enabled=true --set secrets.create=true --set secrets.values.postgresPassword=x \
+            --set secrets.values.sessionSecret=x --set secrets.values.adminPassword=x \
+            --set secrets.values.grafanaAdminPassword=x > /dev/null
       - uses: hashicorp/setup-terraform@v3
       - name: terraform fmt / validate
         working-directory: infra/terraform

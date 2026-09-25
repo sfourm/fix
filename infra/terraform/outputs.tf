@@ -3,6 +3,22 @@ output "app_url" {
   value       = "${var.enable_tls ? "https" : "http"}://${local.host}"
 }
 
+output "grafana_url" {
+  description = "Grafana (usuário admin). A UI do Jaeger fica em <grafana_url>/jaeger."
+  value       = var.enable_observability ? "${var.enable_tls ? "https" : "http"}://${local.grafana_host}" : null
+}
+
+output "grafana_admin_password" {
+  description = "Senha do admin do Grafana (terraform output -raw grafana_admin_password)."
+  value       = random_password.grafana_admin.result
+  sensitive   = true
+}
+
+output "dns_records" {
+  description = "Registros A a criar no DNS do domínio (todos apontam para o IP elástico)."
+  value       = { for h in compact([local.host, var.enable_observability ? local.grafana_host : ""]) : h => aws_eip.node.public_ip }
+}
+
 output "public_ip" {
   description = "IP elástico do nó."
   value       = aws_eip.node.public_ip

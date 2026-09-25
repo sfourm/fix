@@ -37,14 +37,21 @@ Seu kubectl ──6443 (admin_cidrs) ou túnel SSM──▶ API do k3s (contexto
 - Nomes: `<release>-<componente>` (`fix-core-service`, `fix-bff`, `fix-web`, `fix-postgres`, `fix-redis`, `fix-elasticsearch`).
 - Imagem: `<image.registry>/<componente>:<tag>`, com `tag` = `image.tag` ou, por padrão, a **appVersion** do chart. O pipeline
   publica o chart com `appVersion=<sha>`: cada versão do chart instala as imagens geradas no mesmo build (Packages do GitHub).
-- Segredos vêm do Secret `fix-secrets` (`postgres-password`, `session-secret`, `admin-email`, `admin-password`), criado pelo
-  bootstrap a partir do SSM. `secrets.create=true` só para testes locais.
-- Valores do ambiente (host, TLS, registry, pull secret) ficam no nó em `/etc/fix/values.yaml`, gerados pelo Terraform.
+- Segredos vêm do Secret `fix-secrets` (`postgres-password`, `session-secret`, `admin-email`, `admin-password`,
+  `grafana-admin-password`), recriado pelo `fix-deploy` a cada deploy a partir do SSM. `secrets.create=true` só para testes locais.
+- Valores do ambiente (domínios, TLS, observabilidade, registry, pull secret) ficam no SSM em `/fix/<ambiente>/helm-values`
+  (gerado pelo Terraform); o `fix-deploy` grava em `/etc/fix/values.yaml` e aplica. Mudar domínio/TLS/observabilidade no
+  Terraform **não recria a instância**: `terraform apply` + novo deploy.
 - Ingress `nginx`: `/api` → BFF, `/` → web. O core-service **não** é exposto. Com `ingress.tls.enabled`, o cert-manager emite
   o certificado (ClusterIssuer `letsencrypt`).
 - core-service roda as migrations no startup (`Database__MigrateOnStartup=true`) e cria o super administrador (`Seed__*`);
   `startupProbe` dá até 3 min para isso. Init containers aguardam PostgreSQL (core) e core + Elasticsearch (BFF).
-- Telemetria desligada por padrão (`telemetry.enabled=false`): a stack de `observability/` não roda no cluster.
+- **Observabilidade no cluster** (`observability.enabled`, ligada no ambiente de apresentação): OTel Collector, Prometheus,
+  Jaeger e Grafana, equivalentes a `observability/`; a telemetria das apps liga sozinha e aponta para o coletor.
+  Grafana em `observability.grafana.host` (admin + senha do SSM), com os datasources no template do chart e os dashboards
+  copiados de `observability/grafana/dashboards` pelo pipeline ao empacotar (fonte única: editar lá reflete no cluster no
+  próximo deploy). A UI do Jaeger fica em `<grafana host>/jaeger`, liberada pelo ingress-nginx só com sessão válida no Grafana
+  (`auth-url` → `/api/user`). Com tudo ligado o cluster usa ~2,9 GB.
 - Segurança dos pods: `runAsNonRoot`, sem escalonamento de privilégio, capabilities removidas; init containers como 65534.
 - Recursos pequenos por padrão (ver `values.yaml`); Elasticsearch com heap de 384 MB.
 
@@ -52,7 +59,7 @@ Seu kubectl ──6443 (admin_cidrs) ou túnel SSM──▶ API do k3s (contexto
 
 Amazon Linux 2023 (SSM Agent e AWS CLI nativos) → swap 2 GB e `vm.max_map_count` → k3s (`--disable traefik`,
 `--tls-san <EIP>`) → Helm → ingress-nginx (Service LoadBalancer publicado nas portas 80/443 pelo ServiceLB do k3s) →
-cert-manager (opcional) → namespace `fix` + Secret `fix-secrets` → `/etc/fix/values.yaml` + `/usr/local/bin/fix-deploy` →
+cert-manager → `/usr/local/bin/fix-deploy --sync-only` (valores, segredos e ClusterIssuer `letsencrypt` a partir do SSM) →
 kubeconfig publicado no SSM (`/fix/<ambiente>/kubeconfig`, contexto `fix-<ambiente>`, server = EIP) → marca
 `/var/lib/fix/bootstrap-done`. Log em `/var/log/fix-bootstrap.log`.
 
@@ -61,7 +68,8 @@ Versões fixadas em variáveis: k3s `v1.33.5+k3s1`, Helm `v3.19.1`, ingress-ngin
 ## Deploy (`fix-deploy`)
 
 `fix-deploy <oci://ghcr.io/...> <x.y.z> <tag>` valida as entradas (regex), renova o login no GHCR se houver token,
-e roda `helm upgrade --install fix … --values /etc/fix/values.yaml --set image.tag=<tag> --wait --atomic`.
+sincroniza a configuração do SSM (valores, Secret `fix-secrets`, ClusterIssuer com o e-mail do Let's Encrypt) e roda
+`helm upgrade --install fix … --values /etc/fix/values.yaml --set image.tag=<tag> --wait --atomic`.
 O workflow acompanha o `ssm get-command-invocation` e publica a saída no resumo do job.
 
 ## Regras

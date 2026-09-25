@@ -492,3 +492,5 @@ crash.log
 .terraform.tfstate.lock.info
 # Chart empacotado (helm package)
 infra/helm/**/*.tgz
+# Cópia dos dashboards feita pelo pipeline ao empacotar o chart (fonte: observability/grafana/dashboards)
+infra/helm/fix/files/dashboards/

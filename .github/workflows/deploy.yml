@@ -75,6 +75,9 @@ jobs:
           version: v3.19.1
       - name: Publicar o chart no GHCR (OCI)
         run: |
+          # Dashboards do Grafana: fonte única em observability/grafana/dashboards (local e cluster)
+          mkdir -p infra/helm/fix/files/dashboards
+          cp observability/grafana/dashboards/*.json infra/helm/fix/files/dashboards/
           echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
           helm package infra/helm/fix --version "$CHART_VERSION" --app-version "$IMAGE_TAG" --destination dist
           helm push "dist/fix-$CHART_VERSION.tgz" "${CHART_REF%/fix}"

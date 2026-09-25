@@ -77,8 +77,8 @@ spec:
             - name: VIZ_CACHE_TTL_SECONDS
               value: {{ $b.vizCacheTtlSeconds | quote }}
             - name: OTEL_ENABLED
-              value: {{ .Values.telemetry.enabled | quote }}
-            {{- with .Values.telemetry.otlpHttpEndpoint }}
+              value: {{ include "fix.telemetryEnabled" . | quote }}
+            {{- with include "fix.otlpHttpEndpoint" . }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: {{ . | quote }}
             {{- end }}
