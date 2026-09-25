@@ -54,10 +54,12 @@ observability:
     host: ""
     adminUser: admin
     storage: 1Gi
+    # Limite de memória do runtime Go: o Grafana libera memória antes de chegar ao limite do container.
+    goMemLimit: 640MiB
     resources:
-      requests: { cpu: 20m, memory: 128Mi }
-      # A primeira inicialização (migrations do banco interno) passa de 256 MB.
-      limits: { memory: 384Mi }
+      requests: { cpu: 20m, memory: 192Mi }
+      # Abrir o dashboard de requests (37 painéis) passa de 380 MB; com 384Mi o pod era morto (OOMKilled → 502).
+      limits: { memory: 768Mi }
   collector:
     image: otel/opentelemetry-collector-contrib:0.161.0
     resources:

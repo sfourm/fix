@@ -386,6 +386,7 @@ spec:
           securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
           env:
             - { name: GF_SECURITY_ADMIN_USER, value: {{ $o.grafana.adminUser | quote }} }
+            - { name: GOMEMLIMIT, value: {{ $o.grafana.goMemLimit | quote }} }
             # Vale só na criação do banco do Grafana; depois, troque pela UI ou com grafana cli.
             - name: GF_SECURITY_ADMIN_PASSWORD
               valueFrom:
