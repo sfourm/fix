@@ -221,6 +221,30 @@ internal sealed class OrganizationService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task RemoveGroupMemberAsync(RemoveGroupMemberCommand command, CancellationToken cancellationToken)
+    {
+        var organization = await GetAsync(command.OrganizationId, cancellationToken);
+
+        organization.RemoveMemberFromGroup(command.GroupId, command.MemberId);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RenameGroupAsync(RenameGroupCommand command, CancellationToken cancellationToken)
+    {
+        var organization = await GetAsync(command.OrganizationId, cancellationToken);
+
+        organization.RenameGroup(command.GroupId, Name.Create(command.Name));
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteGroupAsync(DeleteGroupCommand command, CancellationToken cancellationToken)
+    {
+        var organization = await GetAsync(command.OrganizationId, cancellationToken);
+
+        organization.DeleteGroup(command.GroupId);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
     // ---------- Queries ----------
 
     public async Task<OrganizationSetupDto> GetOrganizationAsync(GetOrganizationQuery query, CancellationToken cancellationToken) =>

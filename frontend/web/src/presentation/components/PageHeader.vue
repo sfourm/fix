@@ -1,15 +1,20 @@
 <script setup lang="ts">
-defineProps<{ title: string; subtitle?: string | null }>();
+/**
+ * Cabeçalho de página no padrão do FIX: kicker (contexto em caixa alta), título em serifa, texto de apoio e ações.
+ * O caminho (breadcrumb) fica na barra superior do layout.
+ */
+defineProps<{ title: string; subtitle?: string | null; kicker?: string | null }>();
 </script>
 
 <template>
   <header class="page-header">
-    <div class="stack" style="gap: 4px">
-      <slot name="breadcrumb" />
+    <div class="head">
+      <span v-if="kicker" class="kicker">{{ kicker }}</span>
       <h1>{{ title }}</h1>
-      <p v-if="subtitle" class="muted" style="margin: 0">{{ subtitle }}</p>
+      <p v-if="subtitle" class="lead">{{ subtitle }}</p>
+      <slot name="meta" />
     </div>
-    <div class="row">
+    <div class="actions">
       <slot name="actions" />
     </div>
   </header>
@@ -22,6 +27,24 @@ defineProps<{ title: string; subtitle?: string | null }>();
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.head h1 {
+  margin-bottom: 2px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 </style>

@@ -1,5 +1,8 @@
 import type { AddCommodityCommand } from '../../../application/organizations/commands/add-commodity.command.js';
 import type { AddGroupMemberCommand } from '../../../application/organizations/commands/add-group-member.command.js';
+import type { DeleteGroupCommand } from '../../../application/organizations/commands/delete-group.command.js';
+import type { RemoveGroupMemberCommand } from '../../../application/organizations/commands/remove-group-member.command.js';
+import type { RenameGroupCommand } from '../../../application/organizations/commands/rename-group.command.js';
 import type { AddMemberCommand } from '../../../application/organizations/commands/add-member.command.js';
 import type { ChangeMemberDeskCommand } from '../../../application/organizations/commands/change-member-desk.command.js';
 import type { CreateGroupCommand } from '../../../application/organizations/commands/create-group.command.js';
@@ -144,6 +147,18 @@ export class GrpcOrganizationGateway implements OrganizationGateway {
 
   async addGroupMember(command: AddGroupMemberCommand): Promise<void> {
     await this.call('AddGroupMember', command.context, { groupId: command.groupId, memberId: command.memberId });
+  }
+
+  async removeGroupMember(command: RemoveGroupMemberCommand): Promise<void> {
+    await this.call('RemoveGroupMember', command.context, { groupId: command.groupId, memberId: command.memberId });
+  }
+
+  async renameGroup(command: RenameGroupCommand): Promise<void> {
+    await this.call('RenameGroup', command.context, { groupId: command.groupId, name: command.name });
+  }
+
+  async deleteGroup(command: DeleteGroupCommand): Promise<void> {
+    await this.call('DeleteGroup', command.context, { groupId: command.groupId });
   }
 
   // ---------- Queries ----------

@@ -57,7 +57,7 @@ async function remove(band: CoverageBand) {
       <button class="btn btn-primary btn-sm" @click="open(null)">+ Nova banda</button>
     </div>
     <div class="table-wrap">
-      <table class="table">
+      <table v-columns="'policy-bands'" class="table">
         <thead>
           <tr><th>Horizonte</th><th>Safra</th><th>Mínimo</th><th>Máximo</th><th>Observação</th><th /></tr>
         </thead>

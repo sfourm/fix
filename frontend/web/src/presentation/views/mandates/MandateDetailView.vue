@@ -29,8 +29,11 @@ import PageHeader from '../../components/PageHeader.vue';
 import StateBlock from '../../components/StateBlock.vue';
 import StatusBadge from '../../components/StatusBadge.vue';
 import TimelineList from '../../components/TimelineList.vue';
+import { paths } from '../../paths';
+import { useTrailStore } from '../../trail';
 
-const props = defineProps<{ mandateId: string }>();
+/** Mandato dentro da política (cadeia 1:N): a política vem da rota; as boletas do mandato ficam aqui. */
+const props = defineProps<{ policyId: string; mandateId: string }>();
 
 const api = useApi();
 const organization = useOrganizationStore();
@@ -38,8 +41,16 @@ const queue = useQueueStore();
 const router = useRouter();
 const toast = useToast();
 const { confirm } = useConfirm();
+const trail = useTrailStore();
 
-const { data: mandate, loading, error, status, load } = useLoader(() => api.mandates.get(props.mandateId));
+const { data: mandate, loading, error, status, load } = useLoader(async () => {
+  const m = await api.mandates.get(props.mandateId);
+  // Aberto pela política errada (link antigo/copiado): vai para o caminho certo.
+  if (m.policyId !== props.policyId) router.replace(paths.mandate(m.policyId, m.id));
+  trail.set(m.policyId, `${m.policyCode.toUpperCase()} ${m.policyVersion}`);
+  trail.set(m.id, m.terms.title);
+  return m;
+});
 const orders = useLoader(() =>
   organization.can(Permission.ViewOrder) ? api.orders.list({ mandateId: props.mandateId, pageSize: 100 }) : Promise.resolve(null),
 );
@@ -121,7 +132,7 @@ async function remove() {
     await api.mandates.remove(props.mandateId);
     queue.refresh();
     toast.success('Mandato excluído.');
-    router.push('/mandates');
+    router.push(paths.policy(props.policyId, 'mandates'));
   } catch (e) {
     toast.error(errorMessage(e));
   }
@@ -136,14 +147,11 @@ onMounted(() => {
 <template>
   <StateBlock :loading="loading && !mandate" :error="status === 404 ? 'Mandato não encontrado.' : error" @retry="load">
     <template v-if="mandate">
-      <PageHeader :title="mandate.terms.title" :subtitle="mandate.terms.criteria">
-        <template #breadcrumb>
-          <nav class="breadcrumb">
-            <RouterLink to="/mandates">Mandatos</RouterLink><span>›</span>
-            <RouterLink :to="`/policies/${mandate.policyId}`">{{ mandate.policyCode.toUpperCase() }} {{ mandate.policyVersion }}</RouterLink>
-            <span>›</span><span>{{ mandate.axisCode }} · {{ mandate.axisTitle }}</span>
-          </nav>
-        </template>
+      <PageHeader
+        :kicker="`Mandato · ${mandateTypeLabel[mandate.type]} · eixo ${mandate.axisCode} · ${mandate.axisTitle}`"
+        :title="mandate.terms.title"
+        :subtitle="mandate.terms.criteria"
+      >
         <template #actions>
           <template v-if="mandate.status === 'PendingApproval'">
             <button v-if="organization.can(Permission.ApproveMandate)" class="btn btn-primary" @click="decision = 'approve'">Aprovar</button>
@@ -152,13 +160,41 @@ onMounted(() => {
             <button v-if="organization.can(Permission.DeleteMandate)" class="btn btn-danger" @click="remove">Excluir</button>
           </template>
           <template v-if="mandate.status === 'Active'">
-            <RouterLink v-if="executable && organization.can(Permission.CreateOrder)" class="btn btn-primary" :to="`/orders/new?mandateId=${mandate.id}`">
+            <RouterLink v-if="executable && organization.can(Permission.CreateOrder)" class="btn btn-primary" :to="paths.newOrder(props.policyId, mandate.id)">
               + Registrar boleta
             </RouterLink>
             <button v-if="organization.can(Permission.UpdateMandate)" class="btn btn-danger" @click="decision = 'close'">Encerrar</button>
           </template>
         </template>
       </PageHeader>
+
+      <section class="kpis" style="margin-bottom: 16px">
+        <div class="kpi">
+          <span>Status</span>
+          <strong><StatusBadge :label="mandateStatusLabel[mandate.status]" :tone="mandateStatusTone[mandate.status]" /></strong>
+          <small>{{ mandate.decidedAt ? `decidido em ${formatDateTime(mandate.decidedAt)}` : 'sem decisão' }}</small>
+        </div>
+        <div class="kpi">
+          <span>Autorizado</span>
+          <strong>{{ mandate.terms.quantity === null ? 'sem teto' : formatNumber(mandate.terms.quantity) }}</strong>
+          <small>{{ unitLabel[mandate.terms.quantityUnit] }}</small>
+        </div>
+        <div class="kpi">
+          <span>Consumido</span>
+          <strong>{{ formatNumber(mandate.consumed) }}</strong>
+          <small>{{ mandate.terms.quantity ? `${formatNumber(usedPct, 0)}% do autorizado` : 'boletas aprovadas' }}</small>
+        </div>
+        <div class="kpi">
+          <span>Saldo</span>
+          <strong>{{ mandate.balance === null ? '—' : formatNumber(mandate.balance) }}</strong>
+          <small>disponível para boletas</small>
+        </div>
+        <div class="kpi" :class="{ outside: mandate.compliance.status === 'Outside' }">
+          <span>Enquadramento</span>
+          <strong><StatusBadge :label="complianceLabel[mandate.compliance.status]" :tone="complianceTone[mandate.compliance.status]" /></strong>
+          <small>política {{ mandate.policyCode }} {{ mandate.policyVersion }}</small>
+        </div>
+      </section>
 
       <p v-if="mandate.status === 'PendingApproval' && mandate.compliance.status === 'Outside'" class="alert alert-error">
         Mandato fora da política: a aprovação exige a role approve_exception.
@@ -208,9 +244,12 @@ onMounted(() => {
         </section>
 
         <section v-if="organization.can(Permission.ViewOrder)" class="card" style="grid-column: 1 / -1">
-          <header class="card-header"><h2>Boletas</h2></header>
+          <header class="card-header">
+            <h2>Boletas deste mandato</h2>
+            <span class="badge">{{ orders.data.value?.totalCount ?? 0 }}</span>
+          </header>
           <StateBlock :loading="orders.loading.value" :error="orders.error.value" :empty="orders.data.value?.items.length === 0" empty-text="Nenhuma boleta registrada neste mandato." @retry="orders.load">
-            <OrderTable :orders="orders.data.value?.items ?? []" />
+            <OrderTable :orders="orders.data.value?.items ?? []" :policy-id="props.policyId" />
           </StateBlock>
         </section>
 
@@ -246,6 +285,10 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.kpi.outside {
+  border-top-color: var(--danger);
+}
+
 .bar {
   height: 10px;
   border-radius: 999px;

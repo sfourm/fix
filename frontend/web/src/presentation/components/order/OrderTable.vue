@@ -12,8 +12,10 @@ import {
 import type { Order } from '@/domain/order';
 import { formatDate, formatNumber, formatUsd } from '../../composables/format';
 import StatusBadge from '../StatusBadge.vue';
+import { paths } from '../../paths';
 
-defineProps<{ orders: Order[]; showMandate?: boolean }>();
+/** policyId: as boletas sempre são abertas dentro da política (cadeia 1:N). */
+const props = defineProps<{ orders: Order[]; policyId: string; showMandate?: boolean }>();
 const router = useRouter();
 
 const volume = (o: Order) => (o.terms.type === 'Ndf' ? formatUsd(o.terms.notionalUsd) : `${formatNumber(o.terms.lots)} lotes`);
@@ -21,7 +23,7 @@ const volume = (o: Order) => (o.terms.type === 'Ndf' ? formatUsd(o.terms.notiona
 
 <template>
   <div class="table-wrap">
-    <table class="table">
+    <table v-columns="'orders'" class="table">
       <thead>
         <tr>
           <th>Trade</th>
@@ -36,16 +38,16 @@ const volume = (o: Order) => (o.terms.type === 'Ndf' ? formatUsd(o.terms.notiona
         </tr>
       </thead>
       <tbody>
-        <tr v-for="o in orders" :key="o.id" class="clickable" @click="router.push(`/orders/${o.id}`)">
-          <td>{{ formatDate(o.terms.tradeDate) }}</td>
+        <tr v-for="o in orders" :key="o.id" class="clickable" @click="router.push(paths.order(props.policyId, o.mandateId, o.id))">
+          <td class="num">{{ formatDate(o.terms.tradeDate) }}</td>
           <td v-if="showMandate" class="small">{{ o.mandateTitle }}</td>
           <td>
             <strong>{{ directionLabel[o.terms.direction] }} {{ orderTypeLabel[o.terms.type] }}</strong>
             <span v-if="o.terms.optionKind" class="muted"> {{ optionKindLabel[o.terms.optionKind] }}</span>
           </td>
           <td>{{ o.terms.tenor }}</td>
-          <td>{{ volume(o) }}</td>
-          <td>{{ formatNumber(o.terms.price, 4) }} <span class="muted small">{{ o.terms.priceUnit }}</span></td>
+          <td class="num">{{ volume(o) }}</td>
+          <td class="num">{{ formatNumber(o.terms.price, 4) }} <span class="muted small">{{ o.terms.priceUnit }}</span></td>
           <td>{{ o.counterpartyName }}</td>
           <td><StatusBadge :label="approvalLabel[o.approval]" :tone="approvalTone[o.approval]" /></td>
           <td>

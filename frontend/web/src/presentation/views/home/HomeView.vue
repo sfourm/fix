@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { VueDraggable } from 'vue-draggable-plus';
 import { useApi } from '@/application/api-provider';
 import { useCatalogStore } from '@/application/stores/catalog.store';
 import { useOrganizationStore } from '@/application/stores/organization.store';
@@ -33,7 +34,7 @@ const checklist = computed(() => [
   { done: (setup.value?.commodities.length ?? 0) > 0, label: 'Commodities e capacidade', to: '/setup' },
   { done: setup.value?.budget.economicFloor != null, label: 'Orçamento e gatilhos (piso econômico)', to: '/setup' },
   { done: progress.activePolicy, label: 'Política de riscos vigente (aprovada em ata)', to: '/policies' },
-  { done: progress.activeMandate, label: 'Mandato ativo para operar', to: '/mandates' },
+  { done: progress.activeMandate, label: 'Mandato ativo para operar', to: '/policies' },
 ]);
 const setupComplete = computed(() => checklist.value.every((s) => s.done));
 
@@ -205,15 +206,22 @@ async function resize(widget: Widget, width: number) {
   }
 }
 
-// Arrastar e soltar na grade (modo edição).
-const dragging = ref<string | null>(null);
-function drop(targetId: string) {
-  const source = dragging.value;
-  dragging.value = null;
-  if (!source || source === targetId) return;
-  const ids = current.value!.widgets.map((w) => w.id).filter((id) => id !== source);
-  ids.splice(ids.indexOf(targetId), 0, source);
-  reorder(ids);
+// ---------- Arrastar na grade (modo edição) ----------
+// Enquanto o card é segurado, os demais se reorganizam ao vivo (SortableJS com animação); a ordem é salva ao soltar.
+const order = ref<Widget[]>([]);
+const dragging = ref(false);
+watch(
+  () => current.value?.widgets,
+  (widgets) => {
+    if (!dragging.value) order.value = [...(widgets ?? [])];
+  },
+  { immediate: true },
+);
+
+function dropped() {
+  dragging.value = false;
+  const ids = order.value.map((w) => w.id);
+  if (ids.join() !== current.value!.widgets.map((w) => w.id).join()) reorder(ids);
 }
 
 onMounted(() => {
@@ -288,32 +296,43 @@ onMounted(() => {
       </div>
 
       <p v-if="editing" class="alert alert-info small">
-        Arraste os widgets para reordenar, use − / + para a largura e ⚙ para tipo, dados, altura e cores.
+        Segure um widget e arraste: os outros abrem espaço enquanto você move, e a nova ordem é salva ao soltar. Use − / + para a largura e ⚙ para
+        tipo, dados, altura e cores.
       </p>
 
-      <div class="grid">
+      <VueDraggable
+        v-model="order"
+        class="grid"
+        :class="{ editing, dragging }"
+        :disabled="!editing"
+        :animation="220"
+        easing="cubic-bezier(0.2, 0.8, 0.2, 1)"
+        :force-fallback="true"
+        :fallback-tolerance="4"
+        filter="button, select, input, a"
+        :prevent-on-filter="false"
+        ghost-class="widget-ghost"
+        chosen-class="widget-chosen"
+        drag-class="widget-drag"
+        @start="dragging = true"
+        @end="dropped"
+      >
         <WidgetCard
-          v-for="(w, i) in current.widgets"
+          v-for="(w, i) in order"
           :key="w.id"
           :dashboard-id="current.id"
           :widget="w"
           :editing="editing"
           :first="i === 0"
-          :last="i === current.widgets.length - 1"
+          :last="i === order.length - 1"
           :refresh-key="refreshKey"
-          :draggable="editing"
-          :class="{ 'drop-target': dragging && dragging !== w.id }"
-          @dragstart="dragging = w.id"
-          @dragend="dragging = null"
-          @dragover.prevent
-          @drop.prevent="drop(w.id)"
           @edit="editor = { widget: w }"
           @remove="removeWidget(w)"
           @move="move(i, $event)"
           @resize="resize(w, $event)"
         />
-        <button v-if="editing && current.widgets.length < 24" class="add-widget" type="button" @click="editor = { widget: null }">+ Adicionar widget</button>
-      </div>
+      </VueDraggable>
+      <button v-if="editing && current.widgets.length < 24" class="add-widget" type="button" @click="editor = { widget: null }">+ Adicionar widget</button>
       <p v-if="!current.widgets.length && !editing" class="muted">Este dashboard ainda não tem widgets.</p>
     </template>
   </StateBlock>
@@ -402,13 +421,36 @@ onMounted(() => {
   align-items: start;
 }
 
-.drop-target {
-  box-shadow: 0 0 0 2px var(--primary-soft);
+/* Em edição o card inteiro é a alça de arraste. */
+.grid.editing :deep(.widget) {
+  cursor: grab;
+}
+
+.grid.dragging :deep(.widget) {
+  cursor: grabbing;
+}
+
+/* Lugar onde o card vai cair: contorno tracejado dourado. */
+.grid :deep(.widget-ghost) {
+  opacity: 0.35;
+  border: 2px dashed var(--primary);
+  background: var(--primary-soft);
+  box-shadow: none;
+}
+
+/* Card "na mão": levemente inclinado e com sombra, seguindo o cursor. */
+:global(.widget-drag) {
+  opacity: 0.95 !important;
+  transform: rotate(1.2deg);
+  box-shadow: var(--shadow-lg) !important;
+  cursor: grabbing;
 }
 
 .add-widget {
-  grid-column: span 3;
-  min-height: 140px;
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  min-height: 72px;
   border: 1px dashed var(--border);
   border-radius: var(--radius);
   background: none;
@@ -422,9 +464,32 @@ onMounted(() => {
   color: var(--primary);
 }
 
-@media (max-width: 800px) {
-  .add-widget {
-    grid-column: 1 / -1;
+/* Tablet: 6 colunas (cards de 1/3 viram metade). Celular: um card por linha. */
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .grid :deep(.widget) {
+    grid-column: span 6 !important;
+  }
+
+  .grid :deep(.widget.span-3),
+  .grid :deep(.widget.span-4) {
+    grid-column: span 3 !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .grid :deep(.widget),
+  .grid :deep(.widget.span-3),
+  .grid :deep(.widget.span-4) {
+    grid-column: 1 / -1 !important;
   }
 }
 </style>

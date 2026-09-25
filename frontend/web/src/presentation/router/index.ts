@@ -2,6 +2,8 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useOrganizationStore } from '@/application/stores/organization.store';
 import { useSessionStore } from '@/application/stores/session.store';
 import { Permission, type PermissionCode } from '@/domain/permissions';
+import { paths } from '../paths';
+import type { Crumb, TrailStore } from '../trail';
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -13,7 +15,14 @@ declare module 'vue-router' {
   }
 }
 
-const page = (permission?: PermissionCode) => ({ organization: true, permission });
+type Trail = (p: Record<string, string>, t: TrailStore) => Crumb[];
+const page = (permission?: PermissionCode, trail?: Trail) => ({ organization: true, permission, trail });
+
+// ---------- Breadcrumbs da cadeia 1:N ----------
+const policiesCrumb: Crumb = { label: 'Políticas', to: paths.policies() };
+const policyCrumbs: Trail = (p, t) => [policiesCrumb, { label: t.get(p.policyId), to: paths.policy(p.policyId!) }];
+const mandateCrumbs: Trail = (p, t) => [...policyCrumbs(p, t), { label: t.get(p.mandateId), to: paths.mandate(p.policyId!, p.mandateId!) }];
+const area = (label: string, current: string): Trail => () => [{ label }, { label: current }];
 
 const routes: RouteRecordRaw[] = [
   // AppLayout primeiro: com dois pais em '/', o primeiro definido vence para a rota raiz.
@@ -22,49 +31,95 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../layouts/AppLayout.vue'),
     meta: { organization: true },
     children: [
-      { path: '', component: () => import('../views/home/HomeView.vue'), meta: page() },
+      { path: '', component: () => import('../views/home/HomeView.vue'), meta: page(undefined, () => [{ label: 'Home' }]) },
 
-      // 1 · Configurar
-      { path: 'setup', component: () => import('../views/setup/SetupView.vue'), meta: page() },
+      // ---------- Políticas → mandatos → boletas (sempre a partir da política) ----------
+      {
+        path: 'policies',
+        component: () => import('../views/policies/PolicyListView.vue'),
+        meta: page(Permission.ViewPolicy, () => [{ label: 'Políticas' }]),
+      },
+      {
+        path: 'policies/:policyId',
+        component: () => import('../views/policies/PolicyShellView.vue'),
+        props: true,
+        meta: page(Permission.ViewPolicy, policyCrumbs),
+        children: [
+          { path: '', component: () => import('../views/policies/tabs/PolicyOverviewTab.vue') },
+          { path: 'axes', component: () => import('../views/policies/tabs/PolicyAxesTab.vue') },
+          { path: 'instruments', component: () => import('../views/policies/tabs/PolicyInstrumentsTab.vue') },
+          {
+            path: 'mandates',
+            component: () => import('../views/policies/tabs/PolicyMandatesTab.vue'),
+            meta: { permission: Permission.ViewMandate, trail: (p, t) => [...policyCrumbs(p, t), { label: 'Mandatos' }] },
+          },
+          {
+            path: 'approvals',
+            component: () => import('../views/policies/tabs/PolicyApprovalsTab.vue'),
+            meta: { trail: (p, t) => [...policyCrumbs(p, t), { label: 'Aprovações' }] },
+          },
+          {
+            path: 'confirmations',
+            component: () => import('../views/policies/tabs/PolicyConfirmationsTab.vue'),
+            meta: { permission: Permission.ViewOrder, trail: (p, t) => [...policyCrumbs(p, t), { label: 'Confirmations' }] },
+          },
+          { path: 'history', component: () => import('../views/policies/tabs/PolicyHistoryTab.vue') },
+        ],
+      },
+      {
+        path: 'policies/:policyId/mandates/new',
+        component: () => import('../views/mandates/MandateNewView.vue'),
+        props: true,
+        meta: page(Permission.CreateMandate, (p, t) => [...policyCrumbs(p, t), { label: 'Novo mandato' }]),
+      },
+      {
+        path: 'policies/:policyId/mandates/:mandateId',
+        component: () => import('../views/mandates/MandateDetailView.vue'),
+        props: true,
+        meta: page(Permission.ViewMandate, mandateCrumbs),
+      },
+      {
+        path: 'policies/:policyId/mandates/:mandateId/orders/new',
+        component: () => import('../views/orders/OrderNewView.vue'),
+        props: true,
+        meta: page(Permission.CreateOrder, (p, t) => [...mandateCrumbs(p, t), { label: 'Nova boleta' }]),
+      },
+      {
+        path: 'policies/:policyId/mandates/:mandateId/orders/:orderId',
+        component: () => import('../views/orders/OrderDetailView.vue'),
+        props: true,
+        meta: page(Permission.ViewOrder, (p, t) => [...mandateCrumbs(p, t), { label: t.get(p.orderId) }]),
+      },
+
+      // Endereços antigos: mandato e boleta viram o caminho aninhado; listas soltas voltam para as políticas.
+      { path: 'mandates/:mandateId', component: () => import('../views/EntityRedirectView.vue'), props: (r) => ({ kind: 'mandate', id: r.params.mandateId }) },
+      { path: 'orders/:orderId', component: () => import('../views/EntityRedirectView.vue'), props: (r) => ({ kind: 'order', id: r.params.orderId }) },
+      { path: 'mandates', redirect: paths.policies() },
+      { path: 'orders', redirect: paths.policies() },
+      { path: 'approvals', redirect: paths.policies() },
+
+      // ---------- Usuários ----------
+      {
+        path: 'members',
+        component: () => import('../views/organizations/MembersView.vue'),
+        meta: page(Permission.ViewUsers, area('Usuários', 'Membros e grupos')),
+      },
+      {
+        path: 'members/groups/:groupId',
+        component: () => import('../views/organizations/GroupDetailView.vue'),
+        props: true,
+        meta: page(Permission.ViewUsers, (p, t) => [{ label: 'Usuários' }, { label: 'Membros e grupos', to: '/members' }, { label: t.get(p.groupId) }]),
+      },
+      { path: 'access', component: () => import('../views/organizations/AccessView.vue'), meta: page(undefined, area('Usuários', 'Cargos e Regras')) },
+
+      // ---------- Organização ----------
+      { path: 'setup', component: () => import('../views/setup/SetupView.vue'), meta: page(undefined, area('Organização', 'Setup da companhia')) },
       {
         path: 'counterparties',
         component: () => import('../views/setup/CounterpartiesView.vue'),
-        meta: page(Permission.ViewCounterparties),
+        meta: page(Permission.ViewCounterparties, area('Organização', 'Contrapartes')),
       },
-      { path: 'members', component: () => import('../views/organizations/MembersView.vue'), meta: page(Permission.ViewUsers) },
-      { path: 'access', component: () => import('../views/organizations/AccessView.vue'), meta: page() },
-      { path: 'policies', component: () => import('../views/policies/PolicyListView.vue'), meta: page(Permission.ViewPolicy) },
-      {
-        path: 'policies/:policyId',
-        component: () => import('../views/policies/PolicyDetailView.vue'),
-        props: true,
-        meta: page(Permission.ViewPolicy),
-      },
-
-      // 2 · Autorizar
-      { path: 'mandates', component: () => import('../views/mandates/MandateListView.vue'), meta: page(Permission.ViewMandate) },
-      { path: 'mandates/new', component: () => import('../views/mandates/MandateNewView.vue'), meta: page(Permission.CreateMandate) },
-      {
-        path: 'mandates/:mandateId',
-        component: () => import('../views/mandates/MandateDetailView.vue'),
-        props: true,
-        meta: page(Permission.ViewMandate),
-      },
-
-      // 3 · Operar
-      { path: 'orders', component: () => import('../views/orders/OrderListView.vue'), meta: page(Permission.ViewOrder) },
-      { path: 'orders/new', component: () => import('../views/orders/OrderNewView.vue'), meta: page(Permission.CreateOrder) },
-      { path: 'orders/open', component: () => import('../views/orders/OpenOrdersView.vue'), meta: page(Permission.ViewOrder) },
-      {
-        path: 'orders/:orderId',
-        component: () => import('../views/orders/OrderDetailView.vue'),
-        props: true,
-        meta: page(Permission.ViewOrder),
-      },
-      { path: 'approvals', component: () => import('../views/approvals/ApprovalQueueView.vue'), meta: page() },
-
-      // 4 · Acompanhar
-      { path: 'timeline', component: () => import('../views/timeline/TimelineView.vue'), meta: page() },
+      { path: 'timeline', component: () => import('../views/timeline/TimelineView.vue'), meta: page(undefined, area('Organização', 'Timeline')) },
     ],
   },
   {
@@ -82,6 +137,8 @@ const routes: RouteRecordRaw[] = [
 export const router = createRouter({
   history: createWebHistory(),
   routes,
+  // Troca de aba dentro da mesma política não rola a página; telas novas começam do topo.
+  scrollBehavior: (to, from, saved) => saved ?? (to.params.policyId && to.params.policyId === from.params.policyId && !to.params.mandateId ? false : { top: 0 }),
 });
 
 router.beforeEach(async (to) => {

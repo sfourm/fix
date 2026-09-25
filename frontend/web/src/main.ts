@@ -6,7 +6,12 @@ import { useSessionStore } from './application/stores/session.store';
 import { createApi } from './infrastructure/api';
 import { HttpClient } from './infrastructure/http/http-client';
 import App from './presentation/App.vue';
+import { vColumns } from './presentation/directives/columns';
+import { installSelectPopover } from './presentation/directives/select-popover';
 import { router } from './presentation/router';
+// Fontes (empacotadas no build, sem CDN): no Apple o texto usa SF Pro do sistema; nos demais, Inter (a mais próxima).
+import '@fontsource-variable/inter/wght.css';
+import '@fontsource-variable/jetbrains-mono/wght.css';
 import './presentation/styles/main.css';
 
 // Composition root: a infraestrutura HTTP lê token e tenant das stores da aplicação.
@@ -25,5 +30,6 @@ const http = new HttpClient({
 });
 
 provideApi(createApi(http));
+installSelectPopover();
 
-createApp(App).use(pinia).use(router).mount('#app');
+createApp(App).use(pinia).use(router).directive('columns', vColumns).mount('#app');

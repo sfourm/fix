@@ -313,5 +313,46 @@ internal sealed class OrganizationGrpcService(
 
         return new Empty();
     }
+
+    public override async Task<Empty> RemoveGroupMember(RemoveGroupMemberRequest request, ServerCallContext context)
+    {
+        await validation.ExecuteAsync(
+            new RemoveGroupMemberCommand(
+                request.Context.ToUserId(),
+                request.Context.ToOrganizationId(),
+                request.GroupId.ToGuid("group_id"),
+                request.MemberId.ToGuid("member_id")),
+            organizationService.RemoveGroupMemberAsync,
+            context.CancellationToken);
+
+        return new Empty();
+    }
+
+    public override async Task<Empty> RenameGroup(RenameGroupRequest request, ServerCallContext context)
+    {
+        await validation.ExecuteAsync(
+            new RenameGroupCommand(
+                request.Context.ToUserId(),
+                request.Context.ToOrganizationId(),
+                request.GroupId.ToGuid("group_id"),
+                request.Name),
+            organizationService.RenameGroupAsync,
+            context.CancellationToken);
+
+        return new Empty();
+    }
+
+    public override async Task<Empty> DeleteGroup(DeleteGroupRequest request, ServerCallContext context)
+    {
+        await validation.ExecuteAsync(
+            new DeleteGroupCommand(
+                request.Context.ToUserId(),
+                request.Context.ToOrganizationId(),
+                request.GroupId.ToGuid("group_id")),
+            organizationService.DeleteGroupAsync,
+            context.CancellationToken);
+
+        return new Empty();
+    }
 }
 

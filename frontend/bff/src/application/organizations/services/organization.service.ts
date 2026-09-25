@@ -1,5 +1,8 @@
 import type { AddCommodityCommand } from '../commands/add-commodity.command.js';
 import type { AddGroupMemberCommand } from '../commands/add-group-member.command.js';
+import type { DeleteGroupCommand } from '../commands/delete-group.command.js';
+import type { RemoveGroupMemberCommand } from '../commands/remove-group-member.command.js';
+import type { RenameGroupCommand } from '../commands/rename-group.command.js';
 import type { AddMemberCommand } from '../commands/add-member.command.js';
 import type { ChangeMemberDeskCommand } from '../commands/change-member-desk.command.js';
 import type { CreateGroupCommand } from '../commands/create-group.command.js';
@@ -121,6 +124,21 @@ export class OrganizationService {
 
   async addGroupMember(command: AddGroupMemberCommand): Promise<GroupResponse[]> {
     await this.gateway.addGroupMember(command);
+    return this.listGroups({ context: command.context });
+  }
+
+  async removeGroupMember(command: RemoveGroupMemberCommand): Promise<GroupResponse[]> {
+    await this.gateway.removeGroupMember(command);
+    return this.listGroups({ context: command.context });
+  }
+
+  async renameGroup(command: RenameGroupCommand): Promise<GroupResponse[]> {
+    await this.gateway.renameGroup(command);
+    return this.listGroups({ context: command.context });
+  }
+
+  async deleteGroup(command: DeleteGroupCommand): Promise<GroupResponse[]> {
+    await this.gateway.deleteGroup(command);
     return this.listGroups({ context: command.context });
   }
 

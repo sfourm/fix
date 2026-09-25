@@ -39,6 +39,9 @@ service OrganizationService {
   rpc MoveGroup(MoveGroupRequest) returns (google.protobuf.Empty);
   rpc AddGroupMember(AddGroupMemberRequest) returns (google.protobuf.Empty);
   rpc SetGroupRules(SetGroupRulesRequest) returns (google.protobuf.Empty);
+  rpc RemoveGroupMember(RemoveGroupMemberRequest) returns (google.protobuf.Empty);
+  rpc RenameGroup(RenameGroupRequest) returns (google.protobuf.Empty);
+  rpc DeleteGroup(DeleteGroupRequest) returns (google.protobuf.Empty);
 }
 
 enum Sector {
@@ -299,4 +302,21 @@ message AddGroupMemberRequest {
   RequestContext context = 1;
   string group_id = 2;
   string member_id = 3;
+}
+
+message RemoveGroupMemberRequest {
+  RequestContext context = 1;
+  string group_id = 2;
+  string member_id = 3;
+}
+
+message RenameGroupRequest {
+  RequestContext context = 1;
+  string group_id = 2;
+  string name = 3;
+}
+
+message DeleteGroupRequest {
+  RequestContext context = 1;
+  string group_id = 2;
 }

@@ -143,7 +143,7 @@ onMounted(load);
   height: 34px;
   border-radius: 9px;
   background: var(--primary);
-  color: #fff;
+  color: var(--on-primary);
   font-weight: 700;
 }
 

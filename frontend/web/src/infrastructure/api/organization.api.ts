@@ -56,5 +56,9 @@ export function createOrganizationApi(http: HttpClient) {
     setGroupRules: (groupId: string, ruleCodes: string[]) => http.put<Group[]>(`/organization/groups/${groupId}/rules`, { ruleCodes }),
     addGroupMember: (groupId: string, memberId: string) =>
       http.post<Group[]>(`/organization/groups/${groupId}/members`, { memberId }),
+    removeGroupMember: (groupId: string, memberId: string) =>
+      http.delete<Group[]>(`/organization/groups/${groupId}/members/${memberId}`),
+    renameGroup: (groupId: string, name: string) => http.patch<Group[]>(`/organization/groups/${groupId}`, { name }),
+    deleteGroup: (groupId: string) => http.delete<Group[]>(`/organization/groups/${groupId}`),
   };
 }

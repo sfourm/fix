@@ -1,56 +1,61 @@
 import { Permission, type PermissionCode } from '@/domain/permissions';
 
-/** Aba de uma área: uma tela, com a role necessária para vê-la e, opcionalmente, um contador. */
-export interface AreaTab {
+/** Subitem de uma área (aparece no menu quando a área está aberta). */
+export interface NavChild {
   to: string;
   label: string;
   permission?: PermissionCode;
-  counter?: 'approvals' | 'confirmations';
-  /** Rotas que também ativam a aba (ex.: detalhes e formulários). */
-  match?: RegExp;
+  match: RegExp;
 }
 
 export interface Area {
   key: 'home' | 'policies' | 'users' | 'organization';
   label: string;
-  tabs: AreaTab[];
+  /** Legenda curta abaixo do nome no menu. */
+  hint: string;
+  to: string;
+  match: RegExp;
+  permission?: PermissionCode;
+  children: NavChild[];
 }
 
 /**
- * Menu lateral: Home (dashboards) e três áreas cujas telas viram abas no topo do conteúdo.
- * Políticas segue a cadeia política → mandato → boleta; Usuários reúne membros, organograma e alçadas;
- * Organização reúne setup, contrapartes e auditoria.
+ * Menu lateral: Home e três áreas. Políticas é a raiz da cadeia 1:N (política → mandato → boleta): mandatos, boletas,
+ * aprovações e confirmations só aparecem dentro de uma política — o menu mostra o caminho aberto como trilha.
+ * Usuários e Organização mostram os subitens quando abertas.
  */
 export const AREAS: Area[] = [
-  { key: 'home', label: 'Home', tabs: [{ to: '/', label: 'Home', match: /^\/$/ }] },
+  { key: 'home', label: 'Home', hint: 'dashboards', to: '/', match: /^\/$/, children: [] },
   {
     key: 'policies',
     label: 'Políticas',
-    tabs: [
-      { to: '/policies', label: 'Política de riscos', permission: Permission.ViewPolicy, match: /^\/policies(\/|$)/ },
-      { to: '/mandates', label: 'Mandatos', permission: Permission.ViewMandate, match: /^\/mandates(\/|$)/ },
-      { to: '/orders', label: 'Boletas de hedge', permission: Permission.ViewOrder, match: /^\/orders(\/(?!open$)|$)/ },
-      { to: '/orders/open', label: 'Boletas em aberto', permission: Permission.ViewOrder, counter: 'confirmations', match: /^\/orders\/open$/ },
-      { to: '/approvals', label: 'Fila de aprovação', counter: 'approvals', match: /^\/approvals$/ },
-    ],
+    hint: 'mandatos · boletas',
+    to: '/policies',
+    match: /^\/policies(\/|$)/,
+    permission: Permission.ViewPolicy,
+    children: [],
   },
   {
     key: 'users',
     label: 'Usuários',
-    tabs: [
-      { to: '/members', label: 'Membros e grupos', permission: Permission.ViewUsers, match: /^\/members$/ },
-      { to: '/access', label: 'Rules e alçadas', match: /^\/access$/ },
+    hint: 'membros · grupos · cargos',
+    to: '/members',
+    match: /^\/(members|access)(\/|$)/,
+    children: [
+      { to: '/members', label: 'Membros e grupos', permission: Permission.ViewUsers, match: /^\/members(\/|$)/ },
+      { to: '/access', label: 'Cargos e Regras', match: /^\/access$/ },
     ],
   },
   {
     key: 'organization',
     label: 'Organização',
-    tabs: [
+    hint: 'setup · contrapartes',
+    to: '/setup',
+    match: /^\/(setup|counterparties|timeline)$/,
+    children: [
       { to: '/setup', label: 'Setup da companhia', match: /^\/setup$/ },
       { to: '/counterparties', label: 'Contrapartes', permission: Permission.ViewCounterparties, match: /^\/counterparties$/ },
       { to: '/timeline', label: 'Timeline', match: /^\/timeline$/ },
     ],
   },
 ];
-
-export const isTabActive = (tab: AreaTab, path: string) => (tab.match ? tab.match.test(path) : path === tab.to);

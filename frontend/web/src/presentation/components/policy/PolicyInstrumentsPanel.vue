@@ -61,7 +61,7 @@ async function remove(instrument: PolicyInstrument) {
       <button class="btn btn-primary btn-sm" @click="open(null)">+ Novo instrumento</button>
     </div>
     <div class="table-wrap">
-      <table class="table">
+      <table v-columns="'policy-instruments'" class="table">
         <thead>
           <tr><th>Instrumento</th><th>Permissão</th><th>Condição</th><th /></tr>
         </thead>

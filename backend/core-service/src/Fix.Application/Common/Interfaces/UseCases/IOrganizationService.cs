@@ -43,6 +43,12 @@ public interface IOrganizationService
 
     Task AddGroupMemberAsync(AddGroupMemberCommand command, CancellationToken cancellationToken);
 
+    Task RemoveGroupMemberAsync(RemoveGroupMemberCommand command, CancellationToken cancellationToken);
+
+    Task RenameGroupAsync(RenameGroupCommand command, CancellationToken cancellationToken);
+
+    Task DeleteGroupAsync(DeleteGroupCommand command, CancellationToken cancellationToken);
+
     Task<OrganizationSetupDto> GetOrganizationAsync(GetOrganizationQuery query, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<OrganizationDto>> ListUserOrganizationsAsync(ListUserOrganizationsQuery query, CancellationToken cancellationToken);

@@ -29,8 +29,11 @@ import PageHeader from '../../components/PageHeader.vue';
 import StateBlock from '../../components/StateBlock.vue';
 import StatusBadge from '../../components/StatusBadge.vue';
 import TimelineList from '../../components/TimelineList.vue';
+import { paths } from '../../paths';
+import { useTrailStore } from '../../trail';
 
-const props = defineProps<{ orderId: string }>();
+/** Boleta dentro de política › mandato (cadeia 1:N). */
+const props = defineProps<{ policyId: string; mandateId: string; orderId: string }>();
 
 const api = useApi();
 const organization = useOrganizationStore();
@@ -38,8 +41,21 @@ const queue = useQueueStore();
 const router = useRouter();
 const toast = useToast();
 const { confirm } = useConfirm();
+const trail = useTrailStore();
 
-const { data: order, loading, error, status, load } = useLoader(() => api.orders.get(props.orderId));
+const { data: order, loading, error, status, load } = useLoader(async () => {
+  const o = await api.orders.get(props.orderId);
+  // Aberta pelo mandato errado (link antigo/copiado): vai para o caminho certo.
+  if (o.mandateId !== props.mandateId) {
+    const m = await api.mandates.get(o.mandateId);
+    router.replace(paths.order(m.policyId, m.id, o.id));
+  }
+  trail.set(o.id, `${directionLabel[o.terms.direction]} ${orderTypeLabel[o.terms.type]} ${o.terms.tenor}`);
+  trail.set(o.mandateId, o.mandateTitle);
+  // O código da política vem do mandato (a boleta não o conhece).
+  api.mandates.get(o.mandateId).then((m) => trail.set(m.policyId, `${m.policyCode.toUpperCase()} ${m.policyVersion}`)).catch(() => undefined);
+  return o;
+});
 const refreshKey = ref(0);
 
 const pendingApproval = computed(() => order.value?.approval === 'PendingApproval');
@@ -142,7 +158,7 @@ async function remove() {
     await api.orders.remove(props.orderId);
     queue.refresh();
     toast.success('Boleta excluída.');
-    router.push('/orders');
+    router.push(paths.mandate(props.policyId, props.mandateId));
   } catch (e) {
     toast.error(errorMessage(e));
   }
@@ -155,15 +171,10 @@ onMounted(load);
   <StateBlock :loading="loading && !order" :error="status === 404 ? 'Boleta não encontrada.' : error" @retry="load">
     <template v-if="order">
       <PageHeader
+        :kicker="`Boleta de hedge · mandato ${order.mandateTitle}`"
         :title="`${directionLabel[order.terms.direction]} ${orderTypeLabel[order.terms.type]} ${order.terms.tenor}`"
         :subtitle="order.commodity ? `${commodityLabel[order.commodity]} · ${order.counterpartyName}` : `Moeda (US$) · ${order.counterpartyName}`"
       >
-        <template #breadcrumb>
-          <nav class="breadcrumb">
-            <RouterLink to="/orders">Boletas de hedge</RouterLink><span>›</span>
-            <RouterLink :to="`/mandates/${order.mandateId}`">{{ order.mandateTitle }}</RouterLink>
-          </nav>
-        </template>
         <template #actions>
           <template v-if="pendingApproval && organization.can(Permission.ApproveOrder)">
             <button class="btn btn-primary" @click="decision = 'approve'">Aprovar</button>

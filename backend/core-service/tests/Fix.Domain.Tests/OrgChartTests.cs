@@ -96,4 +96,63 @@ public sealed class OrgChartTests
         Assert.Throws<DomainException>(() => organization.MoveGroup(organization.RootGroup.Id, board.Id));
         Assert.Throws<DomainException>(() => organization.CreateGroup(Name.Create("Órfão"), [], Guid.NewGuid()));
     }
+
+    [Fact]
+    public void Removing_a_member_from_a_group_takes_the_position_in_the_org_chart()
+    {
+        var (organization, _, desk, _) = Chart();
+        var traderMember = organization.Members.Single(m => m.UserId == _trader);
+
+        organization.RemoveMemberFromGroup(desk.Id, traderMember.Id);
+
+        Assert.Empty(desk.Members);
+        Assert.True(organization.IsMember(_trader));
+        Assert.Throws<DomainException>(() => organization.RemoveMemberFromGroup(desk.Id, traderMember.Id));
+    }
+
+    [Fact]
+    public void Owner_always_stays_in_the_root_group()
+    {
+        var (organization, _, _, _) = Chart();
+        var owner = organization.Owner!;
+
+        Assert.Throws<DomainException>(() => organization.RemoveMemberFromGroup(organization.RootGroup.Id, owner.Id));
+    }
+
+    [Fact]
+    public void Groups_can_be_renamed_with_a_unique_name()
+    {
+        var (organization, board, _, _) = Chart();
+
+        organization.RenameGroup(board.Id, Name.Create("Conselho"));
+
+        Assert.Equal("Conselho", board.Name.ToString());
+        Assert.Throws<DomainException>(() => organization.RenameGroup(board.Id, Name.Create("Mesa")));
+    }
+
+    [Fact]
+    public void Deleting_a_group_drops_its_alcadas_but_keeps_the_members()
+    {
+        var (organization, _, desk, logistics) = Chart();
+        var alcada = Rule.CreateCustom(organization.Id, "Frete", [Guid.NewGuid()]);
+        organization.SetGroupAlcadas(logistics.Id, [alcada]);
+        var driver = Guid.NewGuid();
+        organization.AddMemberToGroup(logistics.Id, organization.AddMember(driver).Id);
+
+        organization.DeleteGroup(logistics.Id);
+        organization.DeleteGroup(desk.Id);
+
+        Assert.DoesNotContain(organization.Groups, g => g.Id == logistics.Id || g.Id == desk.Id);
+        Assert.Equal(0, organization.UsagesOf(alcada.Id));
+        Assert.True(organization.IsMember(driver));
+    }
+
+    [Fact]
+    public void Root_and_groups_with_subgroups_cannot_be_deleted()
+    {
+        var (organization, board, _, _) = Chart();
+
+        Assert.Throws<DomainException>(() => organization.DeleteGroup(organization.RootGroup.Id));
+        Assert.Throws<DomainException>(() => organization.DeleteGroup(board.Id));
+    }
 }

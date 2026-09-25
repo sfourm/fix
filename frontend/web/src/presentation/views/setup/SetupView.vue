@@ -247,7 +247,7 @@ async function removeCommodity(item: OrganizationCommodity) {
         <button v-if="canEdit && availableCommodities.length" class="btn btn-primary btn-sm" @click="openCommodity(null)">+ Adicionar commodity</button>
       </header>
       <div v-if="setup.commodities.length" class="table-wrap">
-        <table class="table">
+        <table v-columns="'setup-commodities'" class="table">
           <thead>
             <tr><th>Commodity</th><th>Capacidade</th><th>Referência de preço</th><th>Moeda</th><th>Vende</th><th /></tr>
           </thead>

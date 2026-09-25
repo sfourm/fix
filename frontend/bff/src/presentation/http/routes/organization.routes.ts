@@ -142,5 +142,21 @@ export function currentOrganizationRoutes(organizations: OrganizationService): R
     res.json(await organizations.addGroupMember({ context: organizationContext(req), groupId: id, memberId }));
   });
 
+  router.delete('/groups/:id/members/:memberId', async (req, res) => {
+    const { id, memberId } = parse(schemas.groupMemberParams, req.params);
+    res.json(await organizations.removeGroupMember({ context: organizationContext(req), groupId: id, memberId }));
+  });
+
+  router.patch('/groups/:id', async (req, res) => {
+    const { id } = parse(idParam, req.params);
+    const { name } = parse(schemas.renameGroup, req.body);
+    res.json(await organizations.renameGroup({ context: organizationContext(req), groupId: id, name }));
+  });
+
+  router.delete('/groups/:id', async (req, res) => {
+    const { id } = parse(idParam, req.params);
+    res.json(await organizations.deleteGroup({ context: organizationContext(req), groupId: id }));
+  });
+
   return router;
 }

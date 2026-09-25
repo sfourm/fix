@@ -43,6 +43,8 @@ public sealed class OrganizationGroup : Entity
 
     internal void MoveUnder(Guid parentGroupId) => ParentGroupId = parentGroupId;
 
+    internal void Rename(Name name) => Name = name;
+
     internal void RemoveMember(Guid memberId) => _members.RemoveAll(m => m.MemberId == memberId);
 }
 

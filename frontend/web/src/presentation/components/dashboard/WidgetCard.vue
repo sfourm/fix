@@ -35,7 +35,7 @@ watch(() => [props.widget, props.refreshKey], load, { deep: true });
 <template>
   <article
     class="widget card"
-    :class="{ editing }"
+    :class="[{ editing }, `span-${widget.layout.width}`]"
     :style="{ gridColumn: `span ${widget.layout.width}`, height: `${widget.layout.height}px` }"
     :aria-label="widget.title"
   >

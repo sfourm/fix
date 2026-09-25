@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, shallowRef, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
 import { useApi } from '@/application/api-provider';
 import { useOrganizationStore } from '@/application/stores/organization.store';
 import { useQueueStore } from '@/application/stores/queue.store';
 import { complianceLabel, complianceTone, mandateTypeLabel, policyStatusLabel, riskFactorLabel } from '@/domain/labels';
 import { MANDATE_TYPES, mandateTypeFactor, type Compliance, type MandateIssueInput, type MandateTerms, type MandateType } from '@/domain/mandate';
 import { Permission } from '@/domain/permissions';
-import type { Policy, PolicySummary } from '@/domain/policy';
+import type { Policy } from '@/domain/policy';
 import { errorMessage } from '@/infrastructure/http/api-error';
 import { useSubmit } from '../../composables/useAsync';
 import { useToast } from '../../composables/useToast';
@@ -15,16 +15,20 @@ import { orNull } from '../../composables/format';
 import MandateTermsForm from '../../components/mandate/MandateTermsForm.vue';
 import PageHeader from '../../components/PageHeader.vue';
 import StatusBadge from '../../components/StatusBadge.vue';
+import { paths } from '../../paths';
+import { useTrailStore } from '../../trail';
+
+/** Emissão de mandato dentro de uma política (cadeia 1:N): a política vem da rota. */
+const props = defineProps<{ policyId: string }>();
 
 const api = useApi();
 const organization = useOrganizationStore();
 const queue = useQueueStore();
-const route = useRoute();
 const router = useRouter();
+const trail = useTrailStore();
 const toast = useToast();
 
-const policies = ref<PolicySummary[]>([]);
-const policyId = ref((route.query.policyId as string | undefined) ?? '');
+const policyId = computed(() => props.policyId);
 const policy = shallowRef<Policy | null>(null);
 const type = ref<MandateType>('Pricing');
 const axisId = ref('');
@@ -46,15 +50,11 @@ const selfApprove = computed(() => organization.can(Permission.SelfApprove));
 
 onMounted(async () => {
   try {
-    policies.value = (await api.policies.list({ page: 1, pageSize: 100 })).items.filter((p) => p.status !== 'Superseded');
-    policyId.value ||= policies.value.find((p) => p.status === 'Active')?.id ?? policies.value[0]?.id ?? '';
+    policy.value = await api.policies.get(props.policyId);
+    trail.set(policy.value.id, `${policy.value.code.toUpperCase()} ${policy.value.version}`);
   } catch (e) {
     toast.error(errorMessage(e));
   }
-});
-
-watch(policyId, async (id) => {
-  policy.value = id ? await api.policies.get(id).catch(() => null) : null;
 });
 
 // Troca de política ou tipo: seleciona o primeiro eixo compatível e ajusta a unidade padrão.
@@ -127,52 +127,44 @@ async function issue() {
   if (mandate) {
     toast.success(mandate.status === 'Active' ? 'Mandato emitido e ativo.' : 'Mandato emitido: aguardando aprovação.');
     queue.refresh();
-    router.push(`/mandates/${mandate.id}`);
+    router.push(paths.mandate(props.policyId, mandate.id));
   }
 }
 </script>
 
 <template>
-  <PageHeader title="Novo mandato" subtitle="Escolha a política e o eixo, descreva o volume e o preço: o enquadramento é checado antes de emitir.">
-    <template #breadcrumb>
-      <nav class="breadcrumb"><RouterLink to="/mandates">Mandatos</RouterLink><span>›</span><span>novo</span></nav>
-    </template>
-  </PageHeader>
+  <PageHeader
+    :kicker="policy ? `Mandato · ${policy.code} ${policy.version} · ${policyStatusLabel[policy.status]}` : 'Mandato'"
+    title="Emitir mandato"
+    subtitle="Escolha o tipo e o eixo desta política, descreva o volume e o preço: o enquadramento é checado antes de emitir."
+  />
 
   <div class="layout">
     <form class="card card-body stack" @submit.prevent="issue">
       <p v-if="submit.error.value" class="alert alert-error">{{ submit.error.value }}</p>
-      <p v-if="policies.length === 0" class="alert alert-info">Cadastre e aprove uma política de riscos antes de emitir mandatos.</p>
 
+      <p v-if="policy && policy.status !== 'Active'" class="alert alert-info">A política não está vigente: a emissão será recusada.</p>
       <div class="form-grid">
-        <div class="field">
-          <label for="mandate-policy">Política</label>
-          <select id="mandate-policy" v-model="policyId" class="input" required>
-            <option v-for="p in policies" :key="p.id" :value="p.id">
-              {{ p.code.toUpperCase() }} {{ p.version }} · {{ policyStatusLabel[p.status] }}
-            </option>
-          </select>
-        </div>
         <div class="field">
           <label for="mandate-type">Tipo</label>
           <select id="mandate-type" v-model="type" class="input">
             <option v-for="t in MANDATE_TYPES" :key="t" :value="t">{{ mandateTypeLabel[t] }}</option>
           </select>
         </div>
-      </div>
-      <div class="field">
-        <label for="mandate-axis">Eixo da política ({{ riskFactorLabel[mandateTypeFactor[type]] }})</label>
-        <select id="mandate-axis" v-model="axisId" class="input" required>
-          <option v-for="a in axes" :key="a.id" :value="a.id">{{ a.code }} · {{ a.title }}</option>
-        </select>
-        <span v-if="policy && axes.length === 0" class="field-error">A política não tem eixo de {{ riskFactorLabel[mandateTypeFactor[type]] }}.</span>
+        <div class="field">
+          <label for="mandate-axis">Eixo da política ({{ riskFactorLabel[mandateTypeFactor[type]] }})</label>
+          <select id="mandate-axis" v-model="axisId" class="input" required>
+            <option v-for="a in axes" :key="a.id" :value="a.id">{{ a.code }} · {{ a.title }}</option>
+          </select>
+          <span v-if="policy && axes.length === 0" class="field-error">A política não tem eixo de {{ riskFactorLabel[mandateTypeFactor[type]] }}.</span>
+        </div>
       </div>
 
       <MandateTermsForm v-model="terms" :type="type" :field-error="submit.fieldError" />
 
       <div class="row">
         <button class="btn btn-primary" type="submit" :disabled="submit.submitting.value || !axisId">Emitir mandato</button>
-        <RouterLink class="btn" to="/mandates">Cancelar</RouterLink>
+        <RouterLink class="btn" :to="paths.policy(props.policyId, 'mandates')">Cancelar</RouterLink>
       </div>
     </form>
 
@@ -185,7 +177,7 @@ async function issue() {
           <p class="muted small" style="margin: 0">{{ outcome }}</p>
         </template>
         <p v-else-if="previewError" class="alert alert-error">{{ previewError }}</p>
-        <p v-else class="muted small" style="margin: 0">Preencha política, eixo e título para ver a checagem: vigência, horizonte de hedge, janela e piso econômico.</p>
+        <p v-else class="muted small" style="margin: 0">Preencha eixo e título para ver a checagem: vigência, horizonte de hedge, janela e piso econômico.</p>
       </div>
     </aside>
   </div>

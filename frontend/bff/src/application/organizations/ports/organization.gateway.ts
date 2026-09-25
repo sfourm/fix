@@ -1,5 +1,8 @@
 import type { AddCommodityCommand } from '../commands/add-commodity.command.js';
 import type { AddGroupMemberCommand } from '../commands/add-group-member.command.js';
+import type { DeleteGroupCommand } from '../commands/delete-group.command.js';
+import type { RemoveGroupMemberCommand } from '../commands/remove-group-member.command.js';
+import type { RenameGroupCommand } from '../commands/rename-group.command.js';
 import type { AddMemberCommand } from '../commands/add-member.command.js';
 import type { ChangeMemberDeskCommand } from '../commands/change-member-desk.command.js';
 import type { CreateGroupCommand } from '../commands/create-group.command.js';
@@ -45,6 +48,9 @@ export interface OrganizationGateway {
   createGroup(command: CreateGroupCommand): Promise<string>;
   moveGroup(command: MoveGroupCommand): Promise<void>;
   addGroupMember(command: AddGroupMemberCommand): Promise<void>;
+  removeGroupMember(command: RemoveGroupMemberCommand): Promise<void>;
+  renameGroup(command: RenameGroupCommand): Promise<void>;
+  deleteGroup(command: DeleteGroupCommand): Promise<void>;
   listForUser(query: ListUserOrganizationsQuery): Promise<OrganizationDto[]>;
   get(query: GetOrganizationQuery): Promise<OrganizationSetupDto>;
   getUserRoles(query: GetUserRolesQuery): Promise<string[]>;

@@ -103,7 +103,7 @@ onMounted(load);
   <section class="card">
     <StateBlock :loading="loading && !data" :error="error" :empty="data?.length === 0" empty-text="Nenhuma contraparte cadastrada." @retry="load">
       <div class="table-wrap">
-        <table class="table">
+        <table v-columns="'counterparties'" class="table">
           <thead>
             <tr><th>Contraparte</th><th>Tipo</th><th>País</th><th>Limite nocional</th><th>Limite MtM</th><th>Situação</th><th /></tr>
           </thead>

@@ -327,6 +327,63 @@ public sealed class Organization : AggregateRoot
         group.AddMember(memberId);
     }
 
+    /// <summary>
+    /// Tira o membro do grupo: ele continua na organização, mas perde as alçadas herdadas do grupo e a posição
+    /// no organograma que o grupo dava. O owner fica sempre no grupo raiz (continua acima de todos para decidir).
+    /// </summary>
+    public void RemoveMemberFromGroup(Guid groupId, Guid memberId)
+    {
+        var group = GetGroup(groupId);
+        var member = GetMember(memberId);
+
+        if (group.Members.All(m => m.MemberId != member.Id))
+        {
+            throw new DomainException($"O membro não está no grupo '{group.Name}'.");
+        }
+
+        if (group.ParentGroupId is null && IsOwner(member.Id))
+        {
+            throw new DomainException($"O owner fica sempre no grupo raiz '{group.Name}' do organograma.");
+        }
+
+        group.RemoveMember(member.Id);
+    }
+
+    /// <summary>Renomeia o grupo; o nome continua único na organização.</summary>
+    public void RenameGroup(Guid groupId, Name name)
+    {
+        var group = GetGroup(groupId);
+        if (_groups.Any(g => g.Id != group.Id && g.Name == name))
+        {
+            throw new DomainException($"Já existe um grupo com o nome '{name}'.");
+        }
+
+        group.Rename(name);
+    }
+
+    /// <summary>
+    /// Exclui o grupo e as alçadas atribuídas a ele (os membros continuam na organização). A raiz não pode ser
+    /// excluída, e grupos com subgrupos também não: mova os subgrupos antes, para o organograma não ficar sem pai.
+    /// </summary>
+    public void DeleteGroup(Guid groupId)
+    {
+        var group = GetGroup(groupId);
+        if (group.ParentGroupId is null)
+        {
+            throw new DomainException($"O grupo '{group.Name}' é a raiz do organograma e não pode ser excluído.");
+        }
+
+        var children = _groups.Where(g => g.ParentGroupId == group.Id).Select(g => g.Name.ToString()).ToList();
+        if (children.Count > 0)
+        {
+            throw new DomainException(
+                $"O grupo '{group.Name}' tem grupos abaixo dele no organograma ({string.Join(", ", children)}): mova-os antes de excluir.");
+        }
+
+        _rules.RemoveAll(r => r.GroupId == group.Id);
+        _groups.Remove(group);
+    }
+
     // ---------- Alçadas personalizadas ----------
 
     /// <summary>Alçadas do membro (sem contar a rule de base owner/user e as herdadas dos grupos).</summary>

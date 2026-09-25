@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onMounted, provide, reactive, ref, type Ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useApi } from '@/application/api-provider';
 import { useOrganizationStore } from '@/application/stores/organization.store';
+import { useQueueStore } from '@/application/stores/queue.store';
 import { policyStatusLabel, policyStatusTone } from '@/domain/labels';
 import { Permission } from '@/domain/permissions';
 import { isPolicyEditable, type Policy } from '@/domain/policy';
@@ -12,48 +13,92 @@ import { useConfirm } from '../../composables/useConfirm';
 import { useToast } from '../../composables/useToast';
 import { formatDate, orNull } from '../../composables/format';
 import BaseModal from '../../components/BaseModal.vue';
-import MandateTable from '../../components/mandate/MandateTable.vue';
 import PageHeader from '../../components/PageHeader.vue';
-import PolicyAxesPanel from '../../components/policy/PolicyAxesPanel.vue';
-import PolicyBandsPanel from '../../components/policy/PolicyBandsPanel.vue';
-import PolicyInstrumentsPanel from '../../components/policy/PolicyInstrumentsPanel.vue';
-import PolicyLimitsPanel from '../../components/policy/PolicyLimitsPanel.vue';
 import StateBlock from '../../components/StateBlock.vue';
 import StatusBadge from '../../components/StatusBadge.vue';
-import TimelineList from '../../components/TimelineList.vue';
+import { paths } from '../../paths';
+import { useTrailStore } from '../../trail';
+import { policyContextKey, workCounts, type PolicyWork } from './policy-context';
 
+/**
+ * Tela da política: raiz da cadeia 1:N. Cabeçalho, indicadores e abas; mandatos, aprovações e confirmations
+ * desta política ficam aqui dentro (as abas recebem a política e o trabalho em aberto por injeção).
+ */
 const props = defineProps<{ policyId: string }>();
 
 const api = useApi();
 const organization = useOrganizationStore();
+const queue = useQueueStore();
+const trail = useTrailStore();
+const route = useRoute();
 const router = useRouter();
 const toast = useToast();
 const { confirm } = useConfirm();
 
-const { data: policy, loading, error, status, load } = useLoader(() => api.policies.get(props.policyId));
-const mandates = useLoader(() =>
-  organization.can(Permission.ViewMandate) ? api.mandates.list({ policyId: props.policyId, pageSize: 100 }) : Promise.resolve(null),
-);
-
-const tabs = [
-  { key: 'limits', label: 'Parâmetros' },
-  { key: 'axes', label: 'Eixos' },
-  { key: 'bands', label: 'Bandas de cobertura' },
-  { key: 'instruments', label: 'Instrumentos' },
-  { key: 'mandates', label: 'Mandatos' },
-  { key: 'versions', label: 'Versões' },
-  { key: 'history', label: 'Histórico' },
-] as const;
-const tab = ref<(typeof tabs)[number]['key']>('limits');
+const { data: loaded, loading, error, status, load } = useLoader(async () => {
+  const policy = await api.policies.get(props.policyId);
+  trail.set(policy.id, `${policy.code.toUpperCase()} ${policy.version}`);
+  return policy;
+});
+const policy = computed(() => loaded.value) as Ref<Policy>;
 const refreshKey = ref(0);
 
 const canUpdate = computed(() => organization.can(Permission.UpdatePolicy));
-const editable = computed(() => !!policy.value && isPolicyEditable(policy.value) && canUpdate.value);
+const editable = computed(() => !!loaded.value && isPolicyEditable(loaded.value) && canUpdate.value);
+
+// ---------- Trabalho em aberto da política (mandatos, aprovações, confirmations) ----------
+const work = ref<PolicyWork | null>(null);
+
+async function reloadWork() {
+  const canMandates = organization.can(Permission.ViewMandate);
+  const canOrders = organization.can(Permission.ViewOrder);
+  const mandates = canMandates ? (await api.mandates.list({ policyId: props.policyId, pageSize: 100 })).items : [];
+  const ids = new Set(mandates.map((m) => m.id));
+  const mine = <T extends { mandateId: string }>(items: T[]) => items.filter((o) => ids.has(o.mandateId));
+  const [pendingOrders, awaiting, divergent, refused] = canOrders && ids.size
+    ? await Promise.all([
+        api.orders.list({ approval: 'PendingApproval', pageSize: 100 }),
+        api.orders.list({ approval: 'Approved', confirmation: 'Pending', pageSize: 100 }),
+        api.orders.list({ confirmation: 'Divergent', pageSize: 100 }),
+        api.orders.list({ confirmation: 'Refused', pageSize: 100 }),
+      ]).then((pages) => pages.map((p) => mine(p.items)))
+    : [[], [], [], []];
+  work.value = {
+    mandates,
+    pendingMandates: mandates.filter((m) => m.status === 'PendingApproval'),
+    pendingOrders: pendingOrders!,
+    awaitingConfirmation: awaiting!,
+    confirmationProblems: [...divergent!, ...refused!],
+  };
+  queue.refresh();
+}
+
+const counts = workCounts(work);
 
 function onUpdated(updated: Policy) {
-  policy.value = updated;
+  loaded.value = updated;
+  trail.set(updated.id, `${updated.code.toUpperCase()} ${updated.version}`);
   refreshKey.value++;
 }
+
+provide(policyContextKey, { policy, editable, work, refreshKey, onUpdated, reloadWork });
+
+const tabs = computed(() => [
+  { to: paths.policy(props.policyId), label: 'Visão geral', exact: true },
+  { to: paths.policy(props.policyId, 'axes'), label: 'Eixos & bandas', count: loaded.value?.axes.length },
+  { to: paths.policy(props.policyId, 'instruments'), label: 'Instrumentos' },
+  ...(organization.can(Permission.ViewMandate)
+    ? [{ to: paths.policy(props.policyId, 'mandates'), label: 'Mandatos', count: work.value?.mandates.length }]
+    : []),
+  { to: paths.policy(props.policyId, 'approvals'), label: 'Aprovações', alert: counts.approvals.value },
+  ...(organization.can(Permission.ViewOrder)
+    ? [{ to: paths.policy(props.policyId, 'confirmations'), label: 'Confirmations', alert: counts.confirmations.value }]
+    : []),
+  { to: paths.policy(props.policyId, 'history'), label: 'Versões' },
+]);
+const isActive = (tab: { to: string; exact?: boolean }) => (tab.exact ? route.path === tab.to : route.path.startsWith(tab.to));
+
+const activeMandates = computed(() => work.value?.mandates.filter((m) => m.status === 'Active').length ?? 0);
 
 // ---------- Cabeçalho ----------
 const editing = ref(false);
@@ -61,7 +106,7 @@ const header = reactive({ code: '', title: '', description: '', validFrom: '', v
 const headerSubmit = useSubmit();
 
 function openHeader() {
-  const p = policy.value!;
+  const p = policy.value;
   Object.assign(header, { code: p.code, title: p.title, description: p.description ?? '', validFrom: p.validFrom, validTo: p.validTo ?? '' });
   headerSubmit.reset();
   editing.value = true;
@@ -99,7 +144,7 @@ async function submitForApproval() {
 }
 
 function openLifecycle(kind: 'approve' | 'version') {
-  const current = policy.value!.version;
+  const current = policy.value.version;
   const next = current.replace(/(\d+)\.(\d+)$/, (_, major: string, minor: string) => `${major}.${Number(minor) + 1}`);
   Object.assign(lifecycleForm, { approvalRecord: '', version: next === current ? `${current}.1` : next, reason: '' });
   lifecycleSubmit.reset();
@@ -114,16 +159,18 @@ async function confirmLifecycle() {
       : api.policies.openVersion(props.policyId, { version: lifecycleForm.version, reason: orNull(lifecycleForm.reason) }),
   );
   if (updated) {
-    onUpdated(updated);
     lifecycle.value = null;
     toast.success(approving ? 'Política aprovada e vigente. Outras vigentes foram substituídas.' : `Versão ${updated.version} aberta para aprovação.`);
+    // Nova versão é outra política: navega para ela.
+    if (updated.id !== props.policyId) router.push(paths.policy(updated.id));
+    else onUpdated(updated);
   }
 }
 
 async function remove() {
   const ok = await confirm({
     title: 'Excluir política',
-    message: `Excluir ${policy.value!.code.toUpperCase()} ${policy.value!.version}? Políticas com mandatos não podem ser excluídas.`,
+    message: `Excluir ${policy.value.code.toUpperCase()} ${policy.value.version}? Políticas com mandatos não podem ser excluídas.`,
     confirmLabel: 'Excluir',
     danger: true,
   });
@@ -131,25 +178,22 @@ async function remove() {
   try {
     await api.policies.remove(props.policyId);
     toast.success('Política excluída.');
-    router.push('/policies');
+    router.push(paths.policies());
   } catch (e) {
     toast.error(errorMessage(e));
   }
 }
 
-onMounted(() => {
-  load();
-  mandates.load();
+onMounted(async () => {
+  await load();
+  if (loaded.value) reloadWork().catch((e) => toast.error(errorMessage(e)));
 });
 </script>
 
 <template>
-  <StateBlock :loading="loading && !policy" :error="status === 404 ? 'Política não encontrada.' : error" @retry="load">
-    <template v-if="policy">
-      <PageHeader :title="`${policy.code.toUpperCase()} · ${policy.title}`" :subtitle="policy.description">
-        <template #breadcrumb>
-          <nav class="breadcrumb"><RouterLink to="/policies">Política de riscos</RouterLink><span>›</span><span>{{ policy.version }}</span></nav>
-        </template>
+  <StateBlock :loading="loading && !loaded" :error="status === 404 ? 'Política não encontrada.' : error" @retry="load">
+    <template v-if="loaded">
+      <PageHeader :kicker="`Política-mãe · ${policy.code} · ${policy.version}`" :title="policy.title" :subtitle="policy.description">
         <template #actions>
           <button v-if="editable" class="btn" @click="openHeader">Editar</button>
           <button v-if="canUpdate && policy.status === 'Draft'" class="btn btn-primary" @click="submitForApproval">Enviar para aprovação</button>
@@ -163,50 +207,43 @@ onMounted(() => {
         </template>
       </PageHeader>
 
-      <section class="card summary">
-        <div><span class="muted small">Status</span><StatusBadge :label="policyStatusLabel[policy.status]" :tone="policyStatusTone[policy.status]" /></div>
-        <div><span class="muted small">Versão</span><strong>{{ policy.version }}</strong></div>
-        <div><span class="muted small">Vigência</span><strong>{{ formatDate(policy.validFrom) }} → {{ formatDate(policy.validTo) }}</strong></div>
-        <div><span class="muted small">Ata de aprovação</span><strong>{{ policy.approvalRecord ?? '—' }}</strong></div>
-        <div><span class="muted small">Aprovada em</span><strong>{{ formatDate(policy.approvedOn) }}</strong></div>
+      <section class="kpis">
+        <div class="kpi">
+          <span>Versão · status</span>
+          <strong class="row" style="gap: 10px">{{ policy.version }} <StatusBadge :label="policyStatusLabel[policy.status]" :tone="policyStatusTone[policy.status]" /></strong>
+          <small>{{ policy.approvalRecord ? `ata ${policy.approvalRecord}` : 'sem ata de aprovação' }}</small>
+        </div>
+        <div class="kpi">
+          <span>Vigência</span>
+          <strong class="compact">{{ formatDate(policy.validFrom) }} → {{ policy.validTo ? formatDate(policy.validTo) : '…' }}</strong>
+          <small>{{ policy.approvedOn ? `aprovada em ${formatDate(policy.approvedOn)}` : 'aguarda aprovação' }}</small>
+        </div>
+        <div class="kpi">
+          <span>Eixos</span>
+          <strong>{{ policy.axes.length }}</strong>
+          <small>{{ policy.bands.length }} banda(s) · {{ policy.instruments.length }} instrumento(s)</small>
+        </div>
+        <RouterLink v-if="organization.can(Permission.ViewMandate)" class="kpi click" :to="paths.policy(policy.id, 'mandates')">
+          <span>Mandatos</span>
+          <strong>{{ work?.mandates.length ?? '…' }}</strong>
+          <small>{{ activeMandates }} ativo(s)</small>
+        </RouterLink>
+        <RouterLink class="kpi click" :class="{ attention: counts.approvals.value + counts.confirmations.value > 0 }" :to="paths.policy(policy.id, counts.approvals.value ? 'approvals' : 'confirmations')">
+          <span>Pendências</span>
+          <strong>{{ work ? counts.approvals.value + counts.confirmations.value : '…' }}</strong>
+          <small>{{ counts.approvals.value }} aprovação(ões) · {{ counts.confirmations.value }} confirmation(s)</small>
+        </RouterLink>
       </section>
 
-      <nav class="tabs" role="tablist">
-        <button v-for="t in tabs" :key="t.key" class="tab" :class="{ active: tab === t.key }" role="tab" @click="tab = t.key">
+      <nav class="tabs policy-tabs" aria-label="Seções da política">
+        <RouterLink v-for="t in tabs" :key="t.to" :to="t.to" class="tab" :class="{ active: isActive(t) }">
           {{ t.label }}
-          <span v-if="t.key === 'axes'" class="muted">({{ policy.axes.length }})</span>
-          <span v-if="t.key === 'mandates' && mandates.data.value" class="muted">({{ mandates.data.value.totalCount }})</span>
-        </button>
+          <span v-if="t.count !== undefined" class="count">{{ t.count }}</span>
+          <span v-if="t.alert" class="alert-count">{{ t.alert }}</span>
+        </RouterLink>
       </nav>
 
-      <section class="card">
-        <PolicyLimitsPanel v-if="tab === 'limits'" :policy="policy" :editable="editable" @updated="onUpdated" />
-        <PolicyAxesPanel v-else-if="tab === 'axes'" :policy="policy" :editable="editable" @updated="onUpdated" />
-        <PolicyBandsPanel v-else-if="tab === 'bands'" :policy="policy" :editable="editable" @updated="onUpdated" />
-        <PolicyInstrumentsPanel v-else-if="tab === 'instruments'" :policy="policy" :editable="editable" @updated="onUpdated" />
-        <template v-else-if="tab === 'mandates'">
-          <div v-if="organization.can(Permission.CreateMandate) && policy.status === 'Active'" class="card-body" style="padding-bottom: 0">
-            <RouterLink class="btn btn-primary btn-sm" :to="`/mandates/new?policyId=${policy.id}`">+ Emitir mandato</RouterLink>
-          </div>
-          <StateBlock :loading="mandates.loading.value" :error="mandates.error.value" :empty="mandates.data.value?.items.length === 0" empty-text="Nenhum mandato emitido nesta política." @retry="mandates.load">
-            <MandateTable :mandates="mandates.data.value?.items ?? []" />
-          </StateBlock>
-        </template>
-        <div v-else-if="tab === 'versions'" class="table-wrap">
-          <table class="table">
-            <thead><tr><th>Versão</th><th>Status</th><th>Data</th><th>Nota</th></tr></thead>
-            <tbody>
-              <tr v-for="(v, i) in policy.versions" :key="`${v.version}-${i}`">
-                <td><strong>{{ v.version }}</strong></td>
-                <td><StatusBadge :label="policyStatusLabel[v.status]" :tone="policyStatusTone[v.status]" /></td>
-                <td>{{ formatDate(v.date) }}</td>
-                <td class="muted">{{ v.note ?? '—' }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <TimelineList v-else entity-type="Policy" :entity-id="policy.id" :refresh-key="refreshKey" :limit="100" />
-      </section>
+      <RouterView />
     </template>
   </StateBlock>
 
@@ -274,18 +311,47 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px 20px;
-  padding: 16px 20px;
-  margin-bottom: 16px;
+.kpis {
+  margin-bottom: 18px;
 }
 
-.summary > div {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+.kpi.click {
+  color: inherit;
+  transition: background 0.15s;
+}
+
+.kpi.click:hover {
+  background: var(--surface-2);
+}
+
+.kpi.attention {
+  border-top-color: var(--danger);
+}
+
+.kpi.attention strong {
+  color: var(--danger);
+}
+
+/* Barra de seções: largura total, abas dividem o espaço com o texto centralizado (rola se não couber). */
+.policy-tabs {
+  width: 100%;
+  margin-bottom: 18px;
+}
+
+.policy-tabs .tab {
+  flex: 1 0 auto;
+  justify-content: center;
+}
+
+.alert-count {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  font-size: 0.7rem;
+  text-align: center;
 }
 </style>

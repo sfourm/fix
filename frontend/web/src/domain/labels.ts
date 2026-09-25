@@ -169,18 +169,18 @@ export const entityTypeLabel: Record<string, string> = {
   Policy: 'Política',
   Mandate: 'Mandato',
   Order: 'Boleta',
-  Rule: 'Rule',
+  Rule: 'Cargo',
 };
 
 /** Prefixos das entidades filhas registradas na timeline do agregado dono. */
 export const childEntityLabel: Record<string, string> = {
   OrganizationMember: 'Membro',
-  OrganizationRule: 'Rule do membro',
+  OrganizationRule: 'Cargo do membro',
   OrganizationCommodity: 'Commodity',
   OrganizationGroupMember: 'Membro do grupo',
   PolicyAxis: 'Eixo',
   CoverageBand: 'Banda',
   PolicyInstrument: 'Instrumento',
   PolicyVersion: 'Versão',
-  RuleRole: 'Role',
+  RuleRole: 'Regra',
 };

@@ -264,6 +264,8 @@ export const schemas = {
   }),
   moveGroup: z.object({ parentGroupId: z.guid() }),
   addGroupMember: z.object({ memberId: z.guid() }),
+  renameGroup: z.object({ name: text(150) }),
+  groupMemberParams: z.object({ id: z.guid(), memberId: z.guid() }),
 
   // contrapartes
   counterparty,

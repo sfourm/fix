@@ -15,7 +15,9 @@ import { useConfirm } from '../../composables/useConfirm';
 import { useToast } from '../../composables/useToast';
 import BaseModal from '../../components/BaseModal.vue';
 import PageHeader from '../../components/PageHeader.vue';
+import { paths } from '../../paths';
 import StateBlock from '../../components/StateBlock.vue';
+import OrgChartFlow from '../../components/org/OrgChartFlow.vue';
 
 const api = useApi();
 const organization = useOrganizationStore();
@@ -91,7 +93,7 @@ async function removeMember(member: Member) {
 async function transferOwnership(member: Member) {
   const ok = await confirm({
     title: 'Transferir propriedade',
-    message: `${member.fullName || member.email} passa a ser o owner da organização e o owner atual vira usuário (mantém as alçadas que tiver).`,
+    message: `${member.fullName || member.email} passa a ser o owner da organização e o owner atual vira usuário (mantém os cargos que tiver).`,
     confirmLabel: 'Transferir',
     danger: true,
   });
@@ -130,7 +132,7 @@ async function saveRules() {
   if (ok) {
     editingRules.value = null;
     await Promise.all([ruleStore.load(true), organization.refresh()]);
-    toast.success('Alçadas atualizadas.');
+    toast.success('Cargos atualizados.');
   }
 }
 
@@ -204,6 +206,27 @@ async function moveGroup() {
   }
 }
 
+/** Arraste no fluxo: aplica na hora (a árvore já mostrou a prévia) e confirma com o servidor; se falhar, volta. */
+async function moveFromFlow(groupId: string, parentId: string) {
+  const before = groups.data.value;
+  groups.data.value = (before ?? []).map((g) => (g.id === groupId ? { ...g, parentGroupId: parentId } : g));
+  try {
+    groups.data.value = await api.organizations.moveGroup(groupId, parentId);
+    toast.success(`${groupName(groupId)} agora fica abaixo de ${groupName(parentId)}.`);
+  } catch (e) {
+    groups.data.value = before;
+    toast.error(errorMessage(e));
+  }
+}
+
+function addChildGroup(parentId: string) {
+  Object.assign(groupForm, { name: '', ruleCodes: [], parentGroupId: chart.value[0]?.id === parentId ? null : parentId });
+  groupSubmit.reset();
+  creatingGroup.value = true;
+}
+
+const chartView = ref<'flow' | 'list'>('flow');
+
 const addingToGroup = ref<Group | null>(null);
 const selectedMemberId = ref('');
 const groupMemberSubmit = useSubmit();
@@ -243,7 +266,7 @@ onMounted(() => {
     :subtitle="
       internalTeam
         ? 'Equipe interna: o super administrador adiciona e controla os administradores, que dão suporte às organizações clientes (veem e editam, sem decidir).'
-        : 'Toda organização tem um owner; os demais membros são usuários. As permissões extras vêm das alçadas atribuídas ao membro e aos grupos em que ele está.'
+        : 'Toda organização tem um owner; os demais membros são usuários. As regras extras vêm dos cargos atribuídos ao membro e aos grupos em que ele está.'
     "
   />
 
@@ -257,14 +280,14 @@ onMounted(() => {
       </header>
       <StateBlock :loading="members.loading.value && !members.data.value" :error="members.error.value" @retry="members.load">
         <div class="table-wrap">
-          <table class="table">
+          <table v-columns="'members'" class="table">
             <thead>
               <tr>
                 <th>Nome</th>
                 <th>E-mail</th>
                 <th v-if="!internalTeam">Mesa</th>
                 <th>Papel</th>
-                <th v-if="!internalTeam">Alçadas</th>
+                <th v-if="!internalTeam">Cargos</th>
                 <th>Grupos</th>
                 <th />
               </tr>
@@ -302,7 +325,7 @@ onMounted(() => {
                 </td>
                 <td class="muted">{{ member.groups.join(', ') || '—' }}</td>
                 <td class="actions">
-                  <button v-if="canEdit && !internalTeam" class="btn btn-sm" @click="openRules('member', member)">Alçadas</button>
+                  <button v-if="canEdit && !internalTeam" class="btn btn-sm" @click="openRules('member', member)">Cargos</button>
                   <button v-if="canTransfer && !member.isOwner" class="btn btn-sm" @click="transferOwnership(member)">Tornar owner</button>
                   <button
                     v-if="canEdit && !member.isOwner && member.role !== 'super_administrador'"
@@ -325,16 +348,32 @@ onMounted(() => {
           <h2>Grupos e organograma</h2>
           <span class="muted small">Mandatos e boletas só são aprovados ou rejeitados por quem está num grupo acima de quem os emitiu.</span>
         </div>
-        <button v-if="canEdit" class="btn btn-primary btn-sm" @click="creatingGroup = true; groupSubmit.reset()">+ Novo grupo</button>
+        <div class="row">
+          <div class="tabs view-switch" role="tablist" aria-label="Forma de exibir">
+            <button type="button" role="tab" class="tab" :class="{ active: chartView === 'flow' }" :aria-selected="chartView === 'flow'" @click="chartView = 'flow'">Fluxo</button>
+            <button type="button" role="tab" class="tab" :class="{ active: chartView === 'list' }" :aria-selected="chartView === 'list'" @click="chartView = 'list'">Lista</button>
+          </div>
+          <button v-if="canEdit" class="btn btn-primary btn-sm" @click="addChildGroup(chart[0]?.id ?? '')">+ Novo grupo</button>
+        </div>
       </header>
       <StateBlock :loading="groups.loading.value && !groups.data.value" :error="groups.error.value" @retry="groups.load">
-        <div class="table-wrap">
-          <table class="table">
+        <OrgChartFlow
+          v-if="chartView === 'flow'"
+          :groups="groups.data.value ?? []"
+          :can-edit="canEdit"
+          :member-name="memberName"
+          :rule-name="ruleStore.nameOf"
+          @move="moveFromFlow"
+          @open="(id) => router.push(paths.group(id))"
+          @add-child="addChildGroup"
+        />
+        <div v-else class="table-wrap">
+          <table v-columns="'groups'" class="table">
             <thead>
               <tr>
                 <th>Grupo</th>
                 <th>Acima</th>
-                <th v-if="!internalTeam">Alçadas</th>
+                <th v-if="!internalTeam">Cargos</th>
                 <th>Membros</th>
                 <th />
               </tr>
@@ -344,7 +383,7 @@ onMounted(() => {
                 <td>
                   <span class="org-node" :style="{ paddingLeft: `${group.depth * 20}px` }">
                     <span v-if="group.depth > 0" class="muted" aria-hidden="true">└</span>
-                    <strong>{{ group.name }}</strong>
+                    <RouterLink :to="paths.group(group.id)" class="group-link" :title="`Abrir o grupo ${group.name}`"><strong>{{ group.name }}</strong></RouterLink>
                     <span v-if="group.depth === 0" class="badge badge-info">raiz</span>
                   </span>
                 </td>
@@ -358,7 +397,7 @@ onMounted(() => {
                 <td class="muted">{{ group.memberIds.map(memberName).join(', ') || '—' }}</td>
                 <td class="actions">
                   <template v-if="canEdit">
-                    <button v-if="!internalTeam" class="btn btn-sm" @click="openRules('group', group)">Alçadas</button>
+                    <button v-if="!internalTeam" class="btn btn-sm" @click="openRules('group', group)">Cargos</button>
                     <button v-if="group.depth > 0" class="btn btn-sm" @click="openMove(group)">Mover</button>
                     <button class="btn btn-sm" @click="openAddToGroup(group)">Adicionar membro</button>
                   </template>
@@ -383,7 +422,7 @@ onMounted(() => {
       </div>
       <template v-if="!internalTeam">
         <div class="field">
-          <label for="member-rule">Alçada inicial</label>
+          <label for="member-rule">Cargo inicial</label>
           <select id="member-rule" v-model="memberForm.ruleCode" class="input">
             <option :value="null">Nenhuma (só usuário)</option>
             <option v-for="rule in ruleStore.alcadas" :key="rule.code" :value="rule.code">{{ rule.name }}</option>
@@ -404,19 +443,19 @@ onMounted(() => {
     </template>
   </BaseModal>
 
-  <BaseModal v-if="editingRules" :title="`Alçadas de ${editingRules.name}`" width="480px" @close="editingRules = null">
+  <BaseModal v-if="editingRules" :title="`Cargos de ${editingRules.name}`" width="480px" @close="editingRules = null">
     <form id="rules-form" class="stack" @submit.prevent="saveRules">
       <p class="muted small" style="margin: 0">
-        {{ editingRules.kind === 'group' ? 'Todos os membros do grupo recebem as roles destas alçadas.' : 'Somam-se às alçadas herdadas dos grupos do membro.' }}
-        As alçadas são definidas em <RouterLink to="/access">Rules e alçadas</RouterLink>.
+        {{ editingRules.kind === 'group' ? 'Todos os membros do grupo recebem as regras destes cargos.' : 'Somam-se aos cargos herdados dos grupos do membro.' }}
+        Os cargos são definidos em <RouterLink to="/access">Cargos e Regras</RouterLink>.
       </p>
       <p v-if="rulesSubmit.error.value" class="alert alert-error">{{ rulesSubmit.error.value }}</p>
       <div class="checkbox-list stack" style="gap: 8px">
         <label v-for="rule in ruleStore.alcadas" :key="rule.code">
           <input v-model="selectedRules" type="checkbox" :value="rule.code" />
-          {{ rule.name }} <span class="muted small">({{ rule.roles.length }} roles)</span>
+          {{ rule.name }} <span class="muted small">({{ rule.roles.length }} regras)</span>
         </label>
-        <p v-if="ruleStore.alcadas.length === 0" class="muted">Nenhuma alçada criada ainda.</p>
+        <p v-if="ruleStore.alcadas.length === 0" class="muted">Nenhum cargo criado ainda.</p>
       </div>
     </form>
     <template #footer>
@@ -457,7 +496,7 @@ onMounted(() => {
         </select>
       </div>
       <div v-if="!internalTeam" class="field">
-        <label>Alçadas do grupo</label>
+        <label>Cargos do grupo</label>
         <div class="checkbox-list">
           <label v-for="rule in ruleStore.alcadas" :key="rule.code">
             <input v-model="groupForm.ruleCodes" type="checkbox" :value="rule.code" />
@@ -498,6 +537,10 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.view-switch {
+  margin: 0;
+}
+
 .org-node {
   display: inline-flex;
   align-items: center;
