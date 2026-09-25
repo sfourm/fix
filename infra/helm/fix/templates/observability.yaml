@@ -284,59 +284,7 @@ spec:
           requests:
             storage: {{ $o.prometheus.storage }}
 ---
-# ---------- Grafana (datasources e dashboards provisionados) ----------
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ $grafana }}-provisioning
-  labels:
-    {{- include "fix.labels" (dict "ctx" . "component" "grafana") | nindent 4 }}
-data:
-  datasources.yaml: |
-    apiVersion: 1
-    # Recria as fontes pelo nome a cada start: os dashboards referenciam os uids fixos abaixo.
-    deleteDatasources:
-      - { name: Prometheus, orgId: 1 }
-      - { name: Jaeger, orgId: 1 }
-    datasources:
-      - name: Prometheus
-        uid: prometheus
-        type: prometheus
-        access: proxy
-        url: http://{{ $prometheus }}:9090
-        isDefault: true
-        editable: true
-        jsonData:
-          exemplarTraceIdDestinations:
-            - name: trace_id
-              datasourceUid: jaeger
-      - name: Jaeger
-        uid: jaeger
-        type: jaeger
-        access: proxy
-        url: http://{{ $jaeger }}:16686/jaeger
-        editable: true
-        jsonData:
-          nodeGraph:
-            enabled: true
-          tracesToMetrics:
-            datasourceUid: prometheus
-            tags: [{ key: service.name, value: service_name }]
-  dashboards.yaml: |
-    apiVersion: 1
-    providers:
-      - name: FIX Dashboards
-        orgId: 1
-        folder: FIX
-        type: file
-        disableDeletion: false
-        editable: true
-        # Salvar pela interface grava no banco do Grafana (volume persistente); o JSON do repositório volta a valer
-        # quando mudar. Para manter uma edição: exporte para observability/grafana/dashboards e faça commit.
-        allowUiUpdates: true
-        options:
-          path: /etc/grafana/dashboards
----
+# ---------- Grafana (provisionamento em grafana-provisioning.yaml) ----------
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -378,6 +326,9 @@ spec:
     metadata:
       labels:
         {{- include "fix.selectorLabels" (dict "ctx" . "component" "grafana") | nindent 8 }}
+      annotations:
+        # O Grafana só lê o provisionamento na inicialização: reinicia quando ele muda.
+        checksum/provisioning: {{ include (print $.Template.BasePath "/grafana-provisioning.yaml") . | sha256sum }}
     spec:
       securityContext:
         runAsNonRoot: true
