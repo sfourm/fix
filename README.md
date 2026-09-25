@@ -8,17 +8,21 @@ Setup da companhia → Política de riscos (aprovada em ata) → Mandatos (autor
 
 ```
 fix/
-├── protos/     # Contratos gRPC (fonte única, consumida pelo backend e pelo BFF)
-├── backend/    # Core em .NET 10 (Clean Architecture + DDD + CQS + gRPC)
+├── protos/         # Contratos gRPC (fonte única, consumida pelo backend e pelo BFF)
+├── backend/        # Core em .NET 10 (Clean Architecture + DDD + CQS + gRPC)
 ├── frontend/
-│   ├── bff/    # BFF em Node.js + TypeScript + Express (REST para o web, gRPC para o core)
-│   └── web/    # Vue 3 + Vite + TypeScript + Pinia + Vue Router
-└── example/    # Protótipo HTML do FIX2 (referência de telas e regras)
+│   ├── bff/        # BFF em Node.js + TypeScript + Express (REST para o web, gRPC para o core)
+│   └── web/        # Vue 3 + Vite + TypeScript + Pinia + Vue Router
+├── observability/  # Stack de telemetria e observabilidade (OTel Collector + Jaeger + Prometheus + Grafana)
+└── example/        # Protótipo HTML do FIX2 (referência de telas e regras)
 ```
 
 ## Rodando tudo localmente
 
 ```bash
+# 0. Observabilidade (OTel Collector, Jaeger, Prometheus, Grafana)
+cd observability && docker compose up -d                                           # Grafana :3001, Jaeger :16686
+
 # 1. Banco + core
 cd backend && docker compose up -d && dotnet run --project src/Fix.Presentation   # gRPC :5098
 

@@ -2,10 +2,12 @@ using Fix.Application;
 using Fix.Infrastructure;
 using Fix.Infrastructure.Persistence;
 using Fix.Presentation;
+using Fix.Presentation.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
+    .AddBackendTelemetry(builder.Configuration)
     .AddApplication()
     .AddInfrastructure(builder.Configuration)
     .AddPresentation();

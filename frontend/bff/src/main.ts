@@ -1,3 +1,5 @@
+import './telemetry.js';
+import { shutdownTelemetry } from './telemetry.js';
 import { AuthService } from './application/auth/services/auth.service.js';
 import { ActorResolver } from './application/common/actor-resolver.js';
 import { VisualizationCache } from './application/common/visualization-cache.js';
@@ -69,14 +71,15 @@ const app = createApp({
 const server = app.listen(env.PORT, () => {
   console.log(
     `BFF ouvindo em http://localhost:${env.PORT} (core gRPC: ${env.CORE_GRPC_URL}, contratos: ${env.GRPC_CONTRACTS}, ` +
-      `elasticsearch: ${env.ELASTICSEARCH_URL}, redis: ${env.REDIS_URL})`,
+      `elasticsearch: ${env.ELASTICSEARCH_URL}, redis: ${env.REDIS_URL}, ` +
+      `otel: ${env.OTEL_ENABLED ? env.OTEL_EXPORTER_OTLP_ENDPOINT : 'desativado'})`,
   );
 });
 
 const shutdown = () => {
   server.close(async () => {
     core.close();
-    await Promise.allSettled([redis.close(), elastic.client.close()]);
+    await Promise.allSettled([redis.close(), elastic.client.close(), shutdownTelemetry()]);
     process.exit(0);
   });
 };

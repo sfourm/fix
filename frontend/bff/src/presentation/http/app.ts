@@ -15,6 +15,7 @@ import type { RuleService } from '../../application/rules/services/rule.service.
 import type { SearchService } from '../../application/search/services/search.service.js';
 import type { TimelineService } from '../../application/timeline/services/timeline.service.js';
 import { authenticate, errorHandler, invalidateVisualizationOnWrite, notFound, ORGANIZATION_HEADER, resolveOrganization } from './middlewares.js';
+import { telemetryMiddleware } from './telemetry.middleware.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { dashboardRoutes } from './routes/dashboard.routes.js';
 import { counterpartyRoutes } from './routes/counterparty.routes.js';
@@ -56,10 +57,11 @@ export function createApp({ corsOrigin, tokens, visualizationCache, services }: 
   app.use(
     cors({
       origin: corsOrigin.split(',').map((origin) => origin.trim()),
-      allowedHeaders: ['Content-Type', 'Authorization', ORGANIZATION_HEADER],
+      allowedHeaders: ['Content-Type', 'Authorization', ORGANIZATION_HEADER, 'traceparent', 'tracestate', 'baggage'],
     }),
   );
   app.use(express.json({ limit: '1mb' }));
+  app.use(telemetryMiddleware);
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok' });

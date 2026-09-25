@@ -21,6 +21,10 @@ const schema = z.object({
   REDIS_URL: z.string().default('redis://localhost:6379'),
   /** TTL do cache de visualização (linhas lidas do core para pesquisas e widgets). */
   VIZ_CACHE_TTL_SECONDS: z.coerce.number().int().min(0).default(30),
+  /** Ativação e endpoint do OpenTelemetry. */
+  OTEL_ENABLED: z.stringbool().default(true),
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default('http://localhost:4318'),
+  OTEL_SERVICE_NAME: z.string().default('fix-bff'),
 });
 
 export type Env = z.infer<typeof schema>;

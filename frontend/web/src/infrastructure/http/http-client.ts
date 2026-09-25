@@ -43,6 +43,7 @@ export class HttpClient {
     if (token) headers['Authorization'] = `Bearer ${token}`;
     if (organizationId) headers['X-Organization-Id'] = organizationId;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
+    headers['traceparent'] = generateTraceParent();
 
     let response: Response;
     try {
@@ -90,4 +91,19 @@ export class HttpClient {
     const qs = search.toString();
     return `${this.options.baseUrl}${path}${qs ? `?${qs}` : ''}`;
   }
+}
+
+function generateTraceParent(): string {
+  const version = '00';
+  const traceIdBytes = new Uint8Array(16);
+  const spanIdBytes = new Uint8Array(8);
+  crypto.getRandomValues(traceIdBytes);
+  crypto.getRandomValues(spanIdBytes);
+
+  const toHex = (bytes: Uint8Array) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  const traceId = toHex(traceIdBytes);
+  const spanId = toHex(spanIdBytes);
+  const flags = '01'; // sampled
+
+  return `${version}-${traceId}-${spanId}-${flags}`;
 }
