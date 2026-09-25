@@ -1,6 +1,5 @@
 using Fix.Application.Abstractions.Authentication;
 using Fix.Application.Abstractions.Exceptions;
-using Fix.Domain.AggregateRoots.Rules;
 using FluentValidation;
 using FluentValidation.Results;
 using Microsoft.AspNetCore.Identity;
@@ -57,19 +56,19 @@ internal sealed class IdentityService(UserManager<ApplicationUser> userManager) 
         }
 
         await userManager.ResetAccessFailedCountAsync(user);
-        return await ToUserInfoAsync(user);
+        return ToUserInfo(user);
     }
 
     public async Task<UserInfo?> FindByIdAsync(Guid userId, CancellationToken cancellationToken)
     {
         var user = await userManager.FindByIdAsync(userId.ToString());
-        return user is null ? null : await ToUserInfoAsync(user);
+        return user is null ? null : ToUserInfo(user);
     }
 
     public async Task<UserInfo?> FindByEmailAsync(string email, CancellationToken cancellationToken)
     {
         var user = await userManager.FindByEmailAsync(email);
-        return user is null ? null : await ToUserInfoAsync(user);
+        return user is null ? null : ToUserInfo(user);
     }
 
     public async Task<IReadOnlyList<UserInfo>> GetUsersAsync(
@@ -84,13 +83,7 @@ internal sealed class IdentityService(UserManager<ApplicationUser> userManager) 
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<bool> IsSuperAdministratorAsync(Guid userId, CancellationToken cancellationToken)
-    {
-        var user = await userManager.FindByIdAsync(userId.ToString());
-        return user is not null && await userManager.IsInRoleAsync(user, RuleCodes.SuperAdministrador);
-    }
-
-    private async Task<UserInfo> ToUserInfoAsync(ApplicationUser user) =>
-        new(user.Id, user.Email!, user.FullName, [.. await userManager.GetRolesAsync(user)]);
+    /// <summary>Papéis de plataforma não vêm mais do Identity: são resolvidos pela membership na organização FIX.</summary>
+    private static UserInfo ToUserInfo(ApplicationUser user) => new(user.Id, user.Email!, user.FullName, []);
 }
 

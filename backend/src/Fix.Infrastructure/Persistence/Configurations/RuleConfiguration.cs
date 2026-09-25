@@ -1,3 +1,4 @@
+using Fix.Domain.AggregateRoots.Organizations;
 using Fix.Domain.AggregateRoots.Rules;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -13,7 +14,9 @@ internal sealed class RuleConfiguration : IEntityTypeConfiguration<Rule>
 
         builder.Property(r => r.Code).HasMaxLength(64).IsRequired();
         builder.Property(r => r.Name).HasMaxLength(128).IsRequired();
-        builder.HasIndex(r => r.Code).IsUnique();
+        // Código único por escopo: entre as rules de sistema (organização nula) e dentro de cada organização.
+        builder.HasIndex(r => new { r.OrganizationId, r.Code }).IsUnique().AreNullsDistinct(false);
+        builder.HasOne<Organization>().WithMany().HasForeignKey(r => r.OrganizationId).OnDelete(DeleteBehavior.Cascade);
 
         builder.HasMany(r => r.Roles).WithOne().HasForeignKey(rr => rr.RuleId).OnDelete(DeleteBehavior.Cascade);
 
@@ -22,6 +25,7 @@ internal sealed class RuleConfiguration : IEntityTypeConfiguration<Rule>
             Id = SystemRules.Id(r.Code),
             r.Code,
             r.Name,
+            OrganizationId = (Guid?)null,
             SeedData.CreatedAt,
         }));
     }

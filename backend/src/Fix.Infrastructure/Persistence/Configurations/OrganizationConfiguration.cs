@@ -22,6 +22,7 @@ internal sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organ
             .HasMaxLength(Slug.MaxLength)
             .IsRequired();
         builder.HasIndex(o => o.Slug).IsUnique();
+        builder.Property(o => o.IsInternal).HasDefaultValue(false);
 
         builder.ComplexProperty(o => o.Profile, profile =>
         {

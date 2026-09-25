@@ -3,6 +3,10 @@ import type { AddGroupMemberCommand } from '../../../application/organizations/c
 import type { AddMemberCommand } from '../../../application/organizations/commands/add-member.command.js';
 import type { ChangeMemberDeskCommand } from '../../../application/organizations/commands/change-member-desk.command.js';
 import type { CreateGroupCommand } from '../../../application/organizations/commands/create-group.command.js';
+import type { MoveGroupCommand } from '../../../application/organizations/commands/move-group.command.js';
+import type { SetGroupRulesCommand } from '../../../application/organizations/commands/set-group-rules.command.js';
+import type { SetMemberRulesCommand } from '../../../application/organizations/commands/set-member-rules.command.js';
+import type { TransferOwnershipCommand } from '../../../application/organizations/commands/transfer-ownership.command.js';
 import type { CreateOrganizationCommand } from '../../../application/organizations/commands/create-organization.command.js';
 import type { RemoveCommodityCommand } from '../../../application/organizations/commands/remove-commodity.command.js';
 import type { RemoveMemberCommand } from '../../../application/organizations/commands/remove-member.command.js';
@@ -96,7 +100,7 @@ export class GrpcOrganizationGateway implements OrganizationGateway {
   async addMember(command: AddMemberCommand): Promise<string> {
     const response = await this.call<{ memberId: string }>('AddMember', command.context, {
       email: command.email,
-      ruleCode: command.ruleCode,
+      ruleCode: command.ruleCode ?? '',
       desk: deskEnum.toContract(command.desk),
     });
     return response.memberId;
@@ -109,6 +113,18 @@ export class GrpcOrganizationGateway implements OrganizationGateway {
     });
   }
 
+  async setMemberRules(command: SetMemberRulesCommand): Promise<void> {
+    await this.call('SetMemberRules', command.context, { memberId: command.memberId, ruleCodes: command.ruleCodes });
+  }
+
+  async transferOwnership(command: TransferOwnershipCommand): Promise<void> {
+    await this.call('TransferOwnership', command.context, { memberId: command.memberId });
+  }
+
+  async setGroupRules(command: SetGroupRulesCommand): Promise<void> {
+    await this.call('SetGroupRules', command.context, { groupId: command.groupId, ruleCodes: command.ruleCodes });
+  }
+
   async removeMember(command: RemoveMemberCommand): Promise<void> {
     await this.call('RemoveMember', command.context, { memberId: command.memberId });
   }
@@ -117,8 +133,13 @@ export class GrpcOrganizationGateway implements OrganizationGateway {
     const response = await this.call<{ groupId: string }>('CreateGroup', command.context, {
       name: command.name,
       ruleCodes: command.ruleCodes,
+      parentGroupId: command.parentGroupId,
     });
     return response.groupId;
+  }
+
+  async moveGroup(command: MoveGroupCommand): Promise<void> {
+    await this.call('MoveGroup', command.context, { groupId: command.groupId, parentGroupId: command.parentGroupId });
   }
 
   async addGroupMember(command: AddGroupMemberCommand): Promise<void> {

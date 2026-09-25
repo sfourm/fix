@@ -174,7 +174,7 @@ onMounted(() => {
             <dt>Tipo</dt>
             <dd>{{ mandateTypeLabel[mandate.type] }}</dd>
             <dt>Commodity</dt>
-            <dd>{{ commodityLabel[mandate.terms.commodity] }}</dd>
+            <dd>{{ mandate.terms.commodity ? commodityLabel[mandate.terms.commodity] : "—" }}</dd>
             <dt>Tela</dt>
             <dd>{{ mandate.terms.tenor ?? '—' }}</dd>
             <dt>Preço</dt>

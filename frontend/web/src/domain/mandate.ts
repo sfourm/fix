@@ -36,7 +36,8 @@ export interface PriceCriteria {
 export interface MandateTerms {
   title: string;
   criteria: string | null;
-  commodity: Commodity;
+  /** Ausente em NDF / em mandatos que não são de precificação. */
+  commodity: Commodity | null;
   /** Tela/vencimento: N26, fev/27. */
   tenor: string | null;
   quantity: number | null;

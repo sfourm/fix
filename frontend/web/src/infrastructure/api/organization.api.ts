@@ -41,12 +41,19 @@ export function createOrganizationApi(http: HttpClient) {
     roles: () => http.get<string[]>('/organization/roles'),
 
     members: () => http.get<Member[]>('/organization/members'),
-    addMember: (input: { email: string; ruleCode: string; desk: Desk | null }) => http.post<Member[]>('/organization/members', input),
+    addMember: (input: { email: string; ruleCode: string | null; desk: Desk | null }) => http.post<Member[]>('/organization/members', input),
+    /** Alçadas atribuídas diretamente ao membro (substitui as atuais). */
+    setMemberRules: (memberId: string, ruleCodes: string[]) => http.put<Member[]>(`/organization/members/${memberId}/rules`, { ruleCodes }),
+    /** Owner: passa a propriedade para outro membro (o anterior vira user). */
+    transferOwnership: (memberId: string) => http.post<void>('/organization/owner', { memberId }),
     changeMemberDesk: (memberId: string, desk: Desk | null) =>
       http.patch<Member[]>(`/organization/members/${memberId}/desk`, { desk }),
     removeMember: (memberId: string) => http.delete(`/organization/members/${memberId}`),
     groups: () => http.get<Group[]>('/organization/groups'),
-    createGroup: (input: { name: string; ruleCodes: string[] }) => http.post<Group[]>('/organization/groups', input),
+    createGroup: (input: { name: string; ruleCodes: string[]; parentGroupId: string | null }) => http.post<Group[]>('/organization/groups', input),
+    /** Organograma: o grupo passa a ficar abaixo de parentGroupId (com seus subgrupos). */
+    moveGroup: (groupId: string, parentGroupId: string) => http.patch<Group[]>(`/organization/groups/${groupId}/parent`, { parentGroupId }),
+    setGroupRules: (groupId: string, ruleCodes: string[]) => http.put<Group[]>(`/organization/groups/${groupId}/rules`, { ruleCodes }),
     addGroupMember: (groupId: string, memberId: string) =>
       http.post<Group[]>(`/organization/groups/${groupId}/members`, { memberId }),
   };

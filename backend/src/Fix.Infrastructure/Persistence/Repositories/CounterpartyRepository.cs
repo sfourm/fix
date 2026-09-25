@@ -1,6 +1,6 @@
-using Fix.Domain.Common;
 using Fix.Domain.AggregateRoots.Counterparties;
 using Fix.Domain.AggregateRoots.Counterparties.Repositories;
+using Fix.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 
 namespace Fix.Infrastructure.Persistence.Repositories;
@@ -19,7 +19,9 @@ internal sealed class CounterpartyRepository(FixDbContext dbContext) : ICounterp
             query = query.Where(c => c.IsHomologated);
         }
 
-        return await query.OrderBy(c => c.Name).ToListAsync(cancellationToken);
+        return await query
+            .OrderBy(c => c.Name)
+            .ToListAsync(cancellationToken);
     }
 
     public Task<bool> NameExistsAsync(string name, Guid? exceptId, CancellationToken cancellationToken)

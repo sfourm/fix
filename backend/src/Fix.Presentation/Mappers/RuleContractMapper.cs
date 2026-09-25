@@ -11,5 +11,7 @@ internal static class RuleContractMapper
         Code = rule.Code,
         Name = rule.Name,
         Roles = { rule.Roles },
+        IsSystem = rule.IsSystem,
+        Usages = rule.Usages,
     };
 }

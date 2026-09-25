@@ -1,13 +1,14 @@
 using Fix.Application.Abstractions.Authentication;
 using Fix.Application.Organizations.Dtos;
 using Fix.Domain.AggregateRoots.Organizations;
+using Fix.Domain.AggregateRoots.Rules;
 
 namespace Fix.Application.Organizations.Mappers;
 
 internal static class OrganizationMapper
 {
     public static OrganizationDto ToDto(this Organization organization) =>
-        new(organization.Id, organization.Name.Value, organization.Slug.Value);
+        new(organization.Id, organization.Name.Value, organization.Slug.Value, organization.IsInternal);
 
     public static OrganizationSetupDto ToSetupDto(this Organization organization) => new(
         organization.Id,
@@ -54,9 +55,12 @@ internal static class OrganizationMapper
             {
                 users.TryGetValue(member.UserId, out var user);
 
-                var rules = organization.Rules
-                    .Where(r => r.MemberId == member.Id)
-                    .Select(r => ruleCodes.GetValueOrDefault(r.RuleId, r.RuleId.ToString()))
+                var assigned = organization.Rules.Where(r => r.MemberId == member.Id).Select(r => r.RuleId).ToList();
+                var baseRule = assigned.FirstOrDefault(SystemRules.BaseIds.Contains);
+                var rules = assigned
+                    .Where(id => !SystemRules.BaseIds.Contains(id))
+                    .Select(id => ruleCodes.GetValueOrDefault(id, id.ToString()))
+                    .Order()
                     .ToList();
 
                 var groups = organization.Groups
@@ -70,6 +74,8 @@ internal static class OrganizationMapper
                     user?.Email ?? string.Empty,
                     user?.FullName ?? string.Empty,
                     member.Desk,
+                    ruleCodes.GetValueOrDefault(baseRule, RuleCodes.User),
+                    organization.IsOwner(member.Id),
                     rules,
                     groups);
             })
@@ -87,7 +93,11 @@ internal static class OrganizationMapper
                     .Where(r => r.GroupId == group.Id)
                     .Select(r => ruleCodes.GetValueOrDefault(r.RuleId, r.RuleId.ToString()))
                     .ToList(),
-                group.Members.Select(m => m.MemberId).ToList()))
+                group.Members.Select(m => m.MemberId).ToList(),
+                group.ParentGroupId,
+                organization.DepthOf(group.Id)))
+            .OrderBy(g => g.Depth)
+            .ThenBy(g => g.Name, StringComparer.CurrentCulture)
             .ToList();
 }
 

@@ -54,8 +54,8 @@ const nullableEnum = <T extends readonly [string, ...string[]]>(values: T) =>
 /** Ano-safra no formato AA/AA (ex.: 26/27). */
 const crop = z.string().trim().regex(/^\d{2}\/\d{2}$/, 'Use o formato AA/AA.');
 
-export const idParam = z.object({ id: z.uuid() });
-export const childParam = z.object({ id: z.uuid(), childId: z.uuid() });
+export const idParam = z.object({ id: z.guid() });
+export const childParam = z.object({ id: z.guid(), childId: z.guid() });
 
 export const pageQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -137,7 +137,7 @@ const mandateTerms = z
   .object({
     title: text(200),
     criteria: optionalText(1000),
-    commodity: z.enum(COMMODITIES),
+    commodity: nullableEnum(COMMODITIES),
     tenor: optionalText(16),
     quantity: optionalPositive,
     quantityUnit: z.enum(MEASUREMENT_UNITS),
@@ -157,8 +157,8 @@ const mandateTerms = z
   });
 
 const mandateTarget = z.object({
-  policyId: z.uuid(),
-  axisId: z.uuid(),
+  policyId: z.guid(),
+  axisId: z.guid(),
   type: z.enum(MANDATE_TYPES),
   terms: mandateTerms,
 });
@@ -248,10 +248,22 @@ export const schemas = {
   updateCommodity: z.object(commodityData),
 
   // membros e grupos
-  addMember: z.object({ email: z.email(), ruleCode: text(64), desk: nullableEnum(DESKS) }),
+  addMember: z.object({
+    email: z.email(),
+    ruleCode: z.string().trim().max(64).nullish().transform((v) => v || null),
+    desk: nullableEnum(DESKS),
+  }),
+  ruleCodes: z.object({ ruleCodes: z.array(text(64)).max(30).default([]) }),
+  transferOwnership: z.object({ memberId: z.guid() }),
+  rule: z.object({ name: text(128), roleCodes: z.array(text(64)).min(1).max(40) }),
   memberDesk: z.object({ desk: nullableEnum(DESKS) }),
-  createGroup: z.object({ name: text(150), ruleCodes: z.array(text(64)).default([]) }),
-  addGroupMember: z.object({ memberId: z.uuid() }),
+  createGroup: z.object({
+    name: text(150),
+    ruleCodes: z.array(text(64)).default([]),
+    parentGroupId: z.guid().nullish().transform((v) => v ?? null),
+  }),
+  moveGroup: z.object({ parentGroupId: z.guid() }),
+  addGroupMember: z.object({ memberId: z.guid() }),
 
   // contrapartes
   counterparty,
@@ -275,7 +287,7 @@ export const schemas = {
   issueMandate: mandateTarget,
   updateMandate: z.object({ terms: mandateTerms }),
   mandatesQuery: pageQuery
-    .extend({ policyId: z.uuid().optional(), status: z.enum(MANDATE_STATUSES).optional() })
+    .extend({ policyId: z.guid().optional(), status: z.enum(MANDATE_STATUSES).optional() })
     .transform(({ policyId, status, ...page }) => ({
       policyId: policyId ?? null,
       status: status ?? null,
@@ -285,12 +297,12 @@ export const schemas = {
   requiredNote,
 
   // boletas
-  registerOrder: z.object({ mandateId: z.uuid(), counterpartyId: z.uuid(), terms: orderTerms }),
-  updateOrder: z.object({ counterpartyId: z.uuid(), terms: orderTerms }),
+  registerOrder: z.object({ mandateId: z.guid(), counterpartyId: z.guid(), terms: orderTerms }),
+  updateOrder: z.object({ counterpartyId: z.guid(), terms: orderTerms }),
   confirmOrder: z.object({ receivedOn: date }),
   ordersQuery: pageQuery
     .extend({
-      mandateId: z.uuid().optional(),
+      mandateId: z.guid().optional(),
       approval: z.enum(APPROVAL_STATUSES).optional(),
       confirmation: z.enum(CONFIRMATION_STATUSES).optional(),
     })
@@ -303,7 +315,7 @@ export const schemas = {
 
   timelineQuery: z.object({
     entityType: z.string().trim().max(128).optional(),
-    entityId: z.uuid().optional(),
+    entityId: z.guid().optional(),
     limit: z.coerce.number().int().min(1).max(500).optional(),
   }),
 };

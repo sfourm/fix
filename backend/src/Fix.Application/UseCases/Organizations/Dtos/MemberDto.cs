@@ -8,6 +8,10 @@ public sealed record MemberDto(
     string Email,
     string FullName,
     Desk? Desk,
+    // Rule de base: owner, user ou, na organização FIX, super_administrador/administrador.
+    string Role,
+    bool IsOwner,
+    // Códigos das alçadas atribuídas diretamente ao membro.
     IReadOnlyList<string> Rules,
     IReadOnlyList<string> Groups);
 

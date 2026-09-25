@@ -44,7 +44,8 @@ export interface Order {
   mandateTitle: string;
   counterpartyId: string;
   counterpartyName: string;
-  commodity: Commodity;
+  /** Ausente em NDF / em mandatos que não são de precificação. */
+  commodity: Commodity | null;
   terms: OrderTerms;
   approval: ApprovalStatus;
   requestedBy: string;

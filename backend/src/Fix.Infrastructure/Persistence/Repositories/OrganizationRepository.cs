@@ -1,6 +1,7 @@
 using Fix.Domain.Common;
 using Fix.Domain.AggregateRoots.Organizations;
 using Fix.Domain.AggregateRoots.Organizations.Repositories;
+using Fix.Domain.AggregateRoots.Rules;
 using Microsoft.EntityFrameworkCore;
 
 namespace Fix.Infrastructure.Persistence.Repositories;
@@ -22,6 +23,23 @@ internal sealed class OrganizationRepository(FixDbContext dbContext) : IOrganiza
             .Where(o => o.Members.Any(m => m.UserId == userId))
             .OrderBy(o => o.Name)
             .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Organization>> ListAllAsync(CancellationToken cancellationToken) =>
+        await dbContext.Organizations.AsNoTracking().OrderBy(o => o.Name).ToListAsync(cancellationToken);
+
+    public Task<string?> GetInternalRuleCodeAsync(Guid userId, CancellationToken cancellationToken) =>
+        (from member in dbContext.OrganizationMembers
+         join assignment in dbContext.OrganizationRules on member.Id equals assignment.MemberId
+         join rule in dbContext.Rules on assignment.RuleId equals rule.Id
+         where member.OrganizationId == Organization.InternalOrganizationId
+               && member.UserId == userId
+               && (rule.Code == RuleCodes.SuperAdministrador || rule.Code == RuleCodes.Administrador)
+         orderby rule.Code descending
+         select rule.Code)
+        .FirstOrDefaultAsync(cancellationToken);
+
+    public Task<bool> ExistsAsync(Guid organizationId, CancellationToken cancellationToken) =>
+        dbContext.Organizations.AnyAsync(o => o.Id == organizationId, cancellationToken);
 
     public Task<bool> SlugExistsAsync(Slug slug, CancellationToken cancellationToken) =>
         dbContext.Organizations.AnyAsync(o => o.Slug == slug, cancellationToken);

@@ -24,7 +24,9 @@ internal sealed class MandateRepository(FixDbContext dbContext) : IMandateReposi
             query = query.Where(m => m.Status == status);
         }
 
-        return query.OrderByDescending(m => m.Id).ToPagedListAsync(page, pageSize, cancellationToken);
+        return query
+            .OrderByDescending(m => m.Id)
+            .ToPagedListAsync(page, pageSize, cancellationToken);
     }
 
     public Task<bool> HasOrdersAsync(Guid mandateId, CancellationToken cancellationToken) =>

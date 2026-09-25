@@ -1,27 +1,22 @@
 using Fix.Application.Abstractions.Exceptions;
-using Fix.Application.Abstractions.Messaging;
+using Fix.Application.Common.Interfaces.UseCases;
 using Fix.Application.Counterparties.Commands;
 using Fix.Application.Counterparties.Dtos;
 using Fix.Application.Counterparties.Mappers;
 using Fix.Application.Counterparties.Queries;
 using Fix.Domain.Abstractions;
-using Fix.Domain.Common;
 using Fix.Domain.AggregateRoots.Counterparties;
 using Fix.Domain.AggregateRoots.Counterparties.Repositories;
+using Fix.Domain.Common;
 
 namespace Fix.Application.Counterparties.Services;
 
 internal sealed class CounterpartyService(ICounterpartyRepository counterpartyRepository, IUnitOfWork unitOfWork)
-    : ICommandHandler<CreateCounterpartyCommand, CounterpartyDto>,
-      ICommandHandler<UpdateCounterpartyCommand, CounterpartyDto>,
-      ICommandHandler<SetCounterpartyHomologationCommand, CounterpartyDto>,
-      ICommandHandler<DeleteCounterpartyCommand, Unit>,
-      IQueryHandler<GetCounterpartyQuery, CounterpartyDto>,
-      IQueryHandler<ListCounterpartiesQuery, IReadOnlyList<CounterpartyDto>>
+    : ICounterpartyService
 {
     // ---------- Commands ----------
 
-    public async Task<CounterpartyDto> HandleAsync(CreateCounterpartyCommand command, CancellationToken cancellationToken)
+    public async Task<CounterpartyDto> CreateCounterpartyAsync(CreateCounterpartyCommand command, CancellationToken cancellationToken)
     {
         var name = Name.Create(command.Name);
         await EnsureUniqueNameAsync(name, null, cancellationToken);
@@ -42,7 +37,7 @@ internal sealed class CounterpartyService(ICounterpartyRepository counterpartyRe
         return counterparty.ToDto();
     }
 
-    public async Task<CounterpartyDto> HandleAsync(UpdateCounterpartyCommand command, CancellationToken cancellationToken)
+    public async Task<CounterpartyDto> UpdateCounterpartyAsync(UpdateCounterpartyCommand command, CancellationToken cancellationToken)
     {
         var counterparty = await GetAsync(command.Id, cancellationToken);
         var name = Name.Create(command.Name);
@@ -61,7 +56,7 @@ internal sealed class CounterpartyService(ICounterpartyRepository counterpartyRe
         return counterparty.ToDto();
     }
 
-    public async Task<CounterpartyDto> HandleAsync(SetCounterpartyHomologationCommand command, CancellationToken cancellationToken)
+    public async Task<CounterpartyDto> SetCounterpartyHomologationAsync(SetCounterpartyHomologationCommand command, CancellationToken cancellationToken)
     {
         var counterparty = await GetAsync(command.Id, cancellationToken);
 
@@ -71,7 +66,7 @@ internal sealed class CounterpartyService(ICounterpartyRepository counterpartyRe
         return counterparty.ToDto();
     }
 
-    public async Task<Unit> HandleAsync(DeleteCounterpartyCommand command, CancellationToken cancellationToken)
+    public async Task DeleteCounterpartyAsync(DeleteCounterpartyCommand command, CancellationToken cancellationToken)
     {
         var counterparty = await GetAsync(command.Id, cancellationToken);
 
@@ -84,16 +79,14 @@ internal sealed class CounterpartyService(ICounterpartyRepository counterpartyRe
 
         counterpartyRepository.Remove(counterparty);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Unit.Value;
     }
 
     // ---------- Queries ----------
 
-    public async Task<CounterpartyDto> HandleAsync(GetCounterpartyQuery query, CancellationToken cancellationToken) =>
+    public async Task<CounterpartyDto> GetCounterpartyAsync(GetCounterpartyQuery query, CancellationToken cancellationToken) =>
         (await GetAsync(query.Id, cancellationToken)).ToDto();
 
-    public async Task<IReadOnlyList<CounterpartyDto>> HandleAsync(ListCounterpartiesQuery query, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<CounterpartyDto>> ListCounterpartiesAsync(ListCounterpartiesQuery query, CancellationToken cancellationToken)
     {
         var counterparties = await counterpartyRepository.ListAsync(query.OnlyHomologated, cancellationToken);
         return counterparties.Select(c => c.ToDto()).ToList();

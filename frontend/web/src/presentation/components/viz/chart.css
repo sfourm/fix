@@ -1,0 +1,34 @@
+/* Anatomia comum dos gráficos: grade e eixos recessivos, textos com as cores de texto do tema. */
+.chart {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.chart svg {
+  display: block;
+  overflow: visible;
+}
+
+.chart .grid line {
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+.chart .grid text,
+.chart .axis {
+  fill: var(--text-muted);
+  font-size: 11px;
+}
+
+.chart .value {
+  fill: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.chart .baseline {
+  stroke: var(--chart-axis);
+  stroke-width: 1;
+}

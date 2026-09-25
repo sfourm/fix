@@ -1,7 +1,9 @@
 import type { ErrorRequestHandler, RequestHandler } from 'express';
 import { z } from 'zod';
 import type { SessionTokenPort } from '../../application/auth/ports/session-token.port.js';
+import type { VisualizationCache } from '../../application/common/visualization-cache.js';
 import { AppError, type ErrorCode } from '../../cross-cutting/errors/app-error.js';
+import { DomainError } from '../../domain/common/domain-error.js';
 
 export const ORGANIZATION_HEADER = 'x-organization-id';
 
@@ -23,7 +25,7 @@ export function authenticate(tokens: SessionTokenPort): RequestHandler {
 export const resolveOrganization: RequestHandler = (req, _res, next) => {
   const value = req.header(ORGANIZATION_HEADER);
   if (value) {
-    if (!z.uuid().safeParse(value).success) {
+    if (!z.guid().safeParse(value).success) {
       throw AppError.validation('O header X-Organization-Id deve ser um UUID válido.');
     }
 
@@ -44,6 +46,24 @@ const httpStatus: Record<ErrorCode, number> = {
   internal: 500,
 };
 
+/**
+ * Alterações de dados da organização feitas pelo BFF invalidam o cache de visualização dela (pesquisas e widgets
+ * refletem a mudança na hora); alterações vindas de outros canais expiram pelo TTL do cache.
+ */
+export function invalidateVisualizationOnWrite(cache: VisualizationCache): RequestHandler {
+  return (req, res, next) => {
+    if (req.method !== 'GET') {
+      res.on('finish', () => {
+        if (res.statusCode < 400 && req.organizationId) {
+          void cache.invalidateOrganization(req.organizationId);
+        }
+      });
+    }
+
+    next();
+  };
+}
+
 export const notFound: RequestHandler = (req) => {
   throw new AppError('not_found', `Rota ${req.method} ${req.path} não encontrada.`);
 };
@@ -51,6 +71,12 @@ export const notFound: RequestHandler = (req) => {
 export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
   if (error instanceof AppError) {
     res.status(httpStatus[error.code]).json({ code: error.code, message: error.message, fields: error.fields });
+    return;
+  }
+
+  if (error instanceof DomainError) {
+    const code: ErrorCode = error.kind === 'forbidden' ? 'forbidden' : 'business_rule';
+    res.status(httpStatus[code]).json({ code, message: error.message });
     return;
   }
 

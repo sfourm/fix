@@ -13,6 +13,8 @@ export const toOrganizationResponse = (dto: OrganizationDto): OrganizationRespon
   id: dto.id,
   name: dto.name,
   slug: dto.slug,
+  isInternal: dto.isInternal,
+  internalAccess: dto.internalAccess,
 });
 
 export const toCommodityResponse = (dto: CommodityDto): CommodityResponse => ({ ...dto });

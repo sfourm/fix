@@ -150,6 +150,7 @@ public sealed class AuditingInterceptor(IRequestContext requestContext, TimeProv
             CoverageBand band => PolicyOrganization(band.PolicyId),
             PolicyInstrument instrument => PolicyOrganization(instrument.PolicyId),
             PolicyVersion version => PolicyOrganization(version.PolicyId),
+            RuleRole ruleRole => tracker.Entries<Rule>().FirstOrDefault(r => r.Entity.Id == ruleRole.RuleId)?.Entity.OrganizationId,
             OrganizationGroupMember member =>
                 tracker.Entries<OrganizationGroup>().FirstOrDefault(g => g.Entity.Id == member.GroupId)?.Entity.OrganizationId,
             _ => null,

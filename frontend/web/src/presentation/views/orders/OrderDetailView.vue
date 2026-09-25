@@ -156,7 +156,7 @@ onMounted(load);
     <template v-if="order">
       <PageHeader
         :title="`${directionLabel[order.terms.direction]} ${orderTypeLabel[order.terms.type]} ${order.terms.tenor}`"
-        :subtitle="`${commodityLabel[order.commodity]} · ${order.counterpartyName}`"
+        :subtitle="order.commodity ? `${commodityLabel[order.commodity]} · ${order.counterpartyName}` : `Moeda (US$) · ${order.counterpartyName}`"
       >
         <template #breadcrumb>
           <nav class="breadcrumb">

@@ -5,4 +5,6 @@ public sealed record GroupDto(
     string Name,
     bool IsDefault,
     IReadOnlyList<string> Rules,
-    IReadOnlyList<Guid> MemberIds);
+    IReadOnlyList<Guid> MemberIds,
+    Guid? ParentGroupId,
+    int Depth);

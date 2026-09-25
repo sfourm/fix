@@ -1,19 +1,20 @@
 using Fix.Application.Abstractions.Authorization;
 using Fix.Application.Abstractions.Exceptions;
-using Fix.Application.Abstractions.Messaging;
+using Fix.Application.Authorization;
 using Fix.Application.Common;
+using Fix.Application.Common.Interfaces.UseCases;
 using Fix.Application.Mandates.Commands;
 using Fix.Application.Mandates.Dtos;
 using Fix.Application.Mandates.Mappers;
 using Fix.Application.Mandates.Queries;
 using Fix.Domain.Abstractions;
-using Fix.Domain.Common;
 using Fix.Domain.AggregateRoots.Mandates;
 using Fix.Domain.AggregateRoots.Mandates.Repositories;
 using Fix.Domain.AggregateRoots.Organizations.Repositories;
 using Fix.Domain.AggregateRoots.Policies;
 using Fix.Domain.AggregateRoots.Policies.Repositories;
 using Fix.Domain.AggregateRoots.Roles;
+using Fix.Domain.Common;
 using Fix.Domain.Services;
 
 namespace Fix.Application.Mandates.Services;
@@ -23,22 +24,15 @@ internal sealed class MandateService(
     IPolicyRepository policyRepository,
     IOrganizationRepository organizationRepository,
     IRoleResolver roleResolver,
+    OrgChartApproval orgChart,
     TimeProvider timeProvider,
     IUnitOfWork unitOfWork)
-    : ICommandHandler<IssueMandateCommand, MandateDto>,
-      ICommandHandler<UpdateMandateCommand, MandateDto>,
-      ICommandHandler<ApproveMandateCommand, MandateDto>,
-      ICommandHandler<RejectMandateCommand, MandateDto>,
-      ICommandHandler<CloseMandateCommand, MandateDto>,
-      ICommandHandler<DeleteMandateCommand, Unit>,
-      IQueryHandler<GetMandateQuery, MandateDto>,
-      IQueryHandler<ListMandatesQuery, PagedList<MandateDto>>,
-      IQueryHandler<PreviewMandateComplianceQuery, ComplianceDto>
+    : IMandateService
 {
     // ---------- Commands ----------
 
     /// <summary>Emite o mandato: dentro da política e com alçada entra ativo; senão vai para a fila de aprovação.</summary>
-    public async Task<MandateDto> HandleAsync(IssueMandateCommand command, CancellationToken cancellationToken)
+    public async Task<MandateDto> IssueMandateAsync(IssueMandateCommand command, CancellationToken cancellationToken)
     {
         var policy = await GetPolicyAsync(command.PolicyId, cancellationToken);
         var terms = command.Terms.ToTerms();
@@ -60,7 +54,7 @@ internal sealed class MandateService(
         return mandate.ToDto(policy, consumed: 0);
     }
 
-    public async Task<MandateDto> HandleAsync(UpdateMandateCommand command, CancellationToken cancellationToken)
+    public async Task<MandateDto> UpdateMandateAsync(UpdateMandateCommand command, CancellationToken cancellationToken)
     {
         var mandate = await GetAsync(command.Id, cancellationToken);
         var policy = await GetPolicyAsync(mandate.PolicyId, cancellationToken);
@@ -73,9 +67,10 @@ internal sealed class MandateService(
     }
 
     /// <summary>Mandato FORA da política exige, além de approve_mandate, a alçada de exceção.</summary>
-    public async Task<MandateDto> HandleAsync(ApproveMandateCommand command, CancellationToken cancellationToken)
+    public async Task<MandateDto> ApproveMandateAsync(ApproveMandateCommand command, CancellationToken cancellationToken)
     {
         var mandate = await GetAsync(command.Id, cancellationToken);
+        await orgChart.EnsureCanDecideAsync(command.OrganizationId, command.UserId, mandate.IssuedBy, cancellationToken);
 
         if (!mandate.Compliance.IsWithin)
         {
@@ -93,9 +88,10 @@ internal sealed class MandateService(
         return await ToDtoAsync(mandate, null, cancellationToken);
     }
 
-    public async Task<MandateDto> HandleAsync(RejectMandateCommand command, CancellationToken cancellationToken)
+    public async Task<MandateDto> RejectMandateAsync(RejectMandateCommand command, CancellationToken cancellationToken)
     {
         var mandate = await GetAsync(command.Id, cancellationToken);
+        await orgChart.EnsureCanDecideAsync(command.OrganizationId, command.UserId, mandate.IssuedBy, cancellationToken);
 
         mandate.Reject(command.UserId, timeProvider.GetUtcNow(), command.Reason);
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -103,7 +99,7 @@ internal sealed class MandateService(
         return await ToDtoAsync(mandate, null, cancellationToken);
     }
 
-    public async Task<MandateDto> HandleAsync(CloseMandateCommand command, CancellationToken cancellationToken)
+    public async Task<MandateDto> CloseMandateAsync(CloseMandateCommand command, CancellationToken cancellationToken)
     {
         var mandate = await GetAsync(command.Id, cancellationToken);
 
@@ -113,7 +109,7 @@ internal sealed class MandateService(
         return await ToDtoAsync(mandate, null, cancellationToken);
     }
 
-    public async Task<Unit> HandleAsync(DeleteMandateCommand command, CancellationToken cancellationToken)
+    public async Task DeleteMandateAsync(DeleteMandateCommand command, CancellationToken cancellationToken)
     {
         var mandate = await GetAsync(command.Id, cancellationToken);
         if (await mandateRepository.HasOrdersAsync(mandate.Id, cancellationToken))
@@ -123,16 +119,14 @@ internal sealed class MandateService(
 
         mandateRepository.Remove(mandate);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Unit.Value;
     }
 
     // ---------- Queries ----------
 
-    public async Task<MandateDto> HandleAsync(GetMandateQuery query, CancellationToken cancellationToken) =>
+    public async Task<MandateDto> GetMandateAsync(GetMandateQuery query, CancellationToken cancellationToken) =>
         await ToDtoAsync(await GetAsync(query.Id, cancellationToken), null, cancellationToken);
 
-    public async Task<PagedList<MandateDto>> HandleAsync(ListMandatesQuery query, CancellationToken cancellationToken)
+    public async Task<PagedList<MandateDto>> ListMandatesAsync(ListMandatesQuery query, CancellationToken cancellationToken)
     {
         var (page, pageSize) = Paging.Normalize(query.Page, query.PageSize);
         var mandates = await mandateRepository.ListAsync(new MandateFilter(query.PolicyId, query.Status), page, pageSize, cancellationToken);
@@ -147,7 +141,7 @@ internal sealed class MandateService(
         return mandates.Map(m => m.ToDto(policies[m.PolicyId], consumed.GetValueOrDefault(m.Id)));
     }
 
-    public async Task<ComplianceDto> HandleAsync(PreviewMandateComplianceQuery query, CancellationToken cancellationToken)
+    public async Task<ComplianceDto> PreviewMandateComplianceAsync(PreviewMandateComplianceQuery query, CancellationToken cancellationToken)
     {
         var policy = await GetPolicyAsync(query.PolicyId, cancellationToken);
         var axis = policy.GetAxis(query.AxisId);

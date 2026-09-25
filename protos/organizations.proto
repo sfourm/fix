@@ -27,14 +27,18 @@ service OrganizationService {
   // Roles efetivas (alçadas) do usuário
   rpc GetUserRoles(GetUserRolesRequest) returns (UserRolesResponse);
 
-  // Membros e grupos
+  // Membros e grupos (os grupos formam o organograma: decisões de aprovação cabem a quem está acima)
   rpc ListMembers(ListMembersRequest) returns (ListMembersResponse);
   rpc AddMember(AddMemberRequest) returns (AddMemberResponse);
   rpc ChangeMemberDesk(ChangeMemberDeskRequest) returns (google.protobuf.Empty);
+  rpc SetMemberRules(SetMemberRulesRequest) returns (google.protobuf.Empty);
+  rpc TransferOwnership(TransferOwnershipRequest) returns (google.protobuf.Empty);
   rpc RemoveMember(RemoveMemberRequest) returns (google.protobuf.Empty);
   rpc ListGroups(ListGroupsRequest) returns (ListGroupsResponse);
   rpc CreateGroup(CreateGroupRequest) returns (CreateGroupResponse);
+  rpc MoveGroup(MoveGroupRequest) returns (google.protobuf.Empty);
   rpc AddGroupMember(AddGroupMemberRequest) returns (google.protobuf.Empty);
+  rpc SetGroupRules(SetGroupRulesRequest) returns (google.protobuf.Empty);
 }
 
 enum Sector {
@@ -58,6 +62,8 @@ message Organization {
   string id = 1;
   string name = 2;
   string slug = 3;
+  bool is_internal = 4;     // organização nativa da FIX (equipe interna)
+  bool internal_access = 5; // o usuário vê a organização pelo acesso interno FIX, sem ser membro
 }
 
 message CompanyProfile {
@@ -123,8 +129,10 @@ message Member {
   string email = 3;
   string full_name = 4;
   Desk desk = 5;
-  repeated string rules = 6;
+  repeated string rules = 6; // alçadas atribuídas diretamente ao membro
   repeated string groups = 7;
+  string role = 8;           // base: owner, user (FIX: super_administrador, administrador)
+  bool is_owner = 9;
 }
 
 message Group {
@@ -133,6 +141,8 @@ message Group {
   bool is_default = 3;
   repeated string rules = 4;
   repeated string member_ids = 5;
+  optional string parent_group_id = 6; // ausente só na raiz do organograma
+  int32 depth = 7;                     // 0 = raiz
 }
 
 message CreateOrganizationRequest {
@@ -221,7 +231,7 @@ message ListMembersResponse {
 message AddMemberRequest {
   RequestContext context = 1;
   string email = 2;
-  string rule_code = 3;
+  string rule_code = 3; // alçada inicial (opcional; vazio = só user)
   Desk desk = 4;
 }
 
@@ -233,6 +243,19 @@ message ChangeMemberDeskRequest {
   RequestContext context = 1;
   string member_id = 2;
   Desk desk = 3;
+}
+
+// Substitui as alçadas atribuídas diretamente ao membro (a base owner/user não muda).
+message SetMemberRulesRequest {
+  RequestContext context = 1;
+  string member_id = 2;
+  repeated string rule_codes = 3;
+}
+
+// Só o owner atual (ou a equipe interna FIX) transfere; o owner anterior vira user.
+message TransferOwnershipRequest {
+  RequestContext context = 1;
+  string member_id = 2;
 }
 
 message RemoveMemberRequest {
@@ -252,10 +275,24 @@ message CreateGroupRequest {
   RequestContext context = 1;
   string name = 2;
   repeated string rule_codes = 3;
+  optional string parent_group_id = 4; // ausente = abaixo da raiz
 }
 
 message CreateGroupResponse {
   string group_id = 1;
+}
+
+// Organograma: o grupo (com seus subgrupos) passa a ficar abaixo de parent_group_id.
+message MoveGroupRequest {
+  RequestContext context = 1;
+  string group_id = 2;
+  string parent_group_id = 3;
+}
+
+message SetGroupRulesRequest {
+  RequestContext context = 1;
+  string group_id = 2;
+  repeated string rule_codes = 3;
 }
 
 message AddGroupMemberRequest {

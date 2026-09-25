@@ -10,11 +10,13 @@ namespace Fix.Domain.AggregateRoots.Organizations;
 /// </summary>
 public sealed class Organization : AggregateRoot
 {
-    public const string DefaultAdministratorsGroupName = "Administradores";
+    /// <summary>Grupo raiz do organograma de uma organização cliente (onde entra o owner).</summary>
+    public const string RootGroupName = "Direção";
 
-    private static readonly Guid FounderRuleId = SystemRules.Id(RuleCodes.Founder);
-    private static readonly Guid AdministradorRuleId = SystemRules.Id(RuleCodes.Administrador);
-    private static readonly Guid SuperAdministradorRuleId = SystemRules.Id(RuleCodes.SuperAdministrador);
+    /// <summary>Organização nativa da FIX: equipe interna (super administrador e administradores).</summary>
+    public const string InternalOrganizationName = "FIX";
+    public const string InternalRootGroupName = "Equipe FIX";
+    public static readonly Guid InternalOrganizationId = DeterministicGuid.From("organization:fix");
 
     private readonly List<OrganizationMember> _members = [];
     private readonly List<OrganizationGroup> _groups = [];
@@ -26,7 +28,14 @@ public sealed class Organization : AggregateRoot
     }
 
     private Organization(Name name)
+        : this(Guid.CreateVersion7(), name, isInternal: false)
     {
+    }
+
+    private Organization(Guid id, Name name, bool isInternal)
+        : base(id)
+    {
+        IsInternal = isInternal;
         Name = name;
         Slug = Slug.From(name.Value);
         Profile = CompanyProfile.Default(name);
@@ -36,6 +45,9 @@ public sealed class Organization : AggregateRoot
     }
 
     public Name Name { get; private set; } = null!;
+
+    /// <summary>Organização da própria FIX (equipe interna), e não uma cliente.</summary>
+    public bool IsInternal { get; private set; }
 
     public Slug Slug { get; private set; } = null!;
 
@@ -56,21 +68,29 @@ public sealed class Organization : AggregateRoot
     public IReadOnlyCollection<OrganizationCommodity> Commodities => _commodities.AsReadOnly();
 
     /// <summary>
-    /// Cria a organização: o criador vira membro founder (Diretoria) e é adicionado ao grupo default de administradores.
+    /// Cria uma organização cliente: o criador vira o owner (Diretoria) e entra no grupo raiz do organograma.
+    /// As alçadas iniciais (modelos) são criadas pela aplicação a partir de <see cref="SystemRules.Templates"/>.
     /// </summary>
-    public static Organization Create(Name name, Guid founderUserId)
+    public static Organization Create(Name name, Guid ownerUserId)
     {
         var organization = new Organization(name);
 
-        var founder = organization.AddMember(founderUserId, FounderRuleId, Desk.Board);
+        var owner = organization.AddMemberWithBase(ownerUserId, SystemRules.OwnerId, Desk.Board);
+        var root = organization.AddGroup(Name.Create(RootGroupName), [], isDefault: true, parentGroupId: null);
+        organization.AddMemberToGroup(root.Id, owner.Id);
 
-        var administrators = organization.CreateGroup(
-            Name.Create(DefaultAdministratorsGroupName),
-            [AdministradorRuleId],
-            isDefault: true);
-        organization.AddMemberToGroup(administrators.Id, founder.Id);
+        organization.Raise(new OrganizationCreatedDomainEvent(organization.Id, ownerUserId));
+        return organization;
+    }
 
-        organization.Raise(new OrganizationCreatedDomainEvent(organization.Id, founderUserId));
+    /// <summary>Cria a organização nativa da FIX com o super administrador (feito uma única vez, na inicialização).</summary>
+    public static Organization CreateInternal(Guid superAdministratorUserId)
+    {
+        var organization = new Organization(InternalOrganizationId, Name.Create(InternalOrganizationName), isInternal: true);
+
+        var superAdministrator = organization.AddMemberWithBase(superAdministratorUserId, SystemRules.SuperAdministradorId, desk: null);
+        var root = organization.AddGroup(Name.Create(InternalRootGroupName), [], isDefault: true, parentGroupId: null);
+        organization.AddMemberToGroup(root.Id, superAdministrator.Id);
         return organization;
     }
 
@@ -122,7 +142,14 @@ public sealed class Organization : AggregateRoot
 
     public bool IsMember(Guid userId) => _members.Any(m => m.UserId == userId);
 
-    public OrganizationMember AddMember(Guid userId, Guid ruleId, Desk? desk = null)
+    /// <summary>
+    /// Adiciona um membro: numa organização cliente ele entra como user (permissões extras vêm das alçadas);
+    /// na organização FIX, como administrador interno.
+    /// </summary>
+    public OrganizationMember AddMember(Guid userId, Desk? desk = null) =>
+        AddMemberWithBase(userId, IsInternal ? SystemRules.AdministradorId : SystemRules.UserId, desk);
+
+    private OrganizationMember AddMemberWithBase(Guid userId, Guid baseRuleId, Desk? desk)
     {
         if (IsMember(userId))
         {
@@ -131,8 +158,37 @@ public sealed class Organization : AggregateRoot
 
         var member = new OrganizationMember(Id, userId, desk);
         _members.Add(member);
-        AssignRuleToMember(member.Id, ruleId);
+        _rules.Add(OrganizationRule.ForMember(Id, baseRuleId, member.Id));
         return member;
+    }
+
+    /// <summary>Membro owner (sempre exatamente um numa organização cliente).</summary>
+    public OrganizationMember? Owner =>
+        _rules.FirstOrDefault(r => r.RuleId == SystemRules.OwnerId && r.MemberId is not null) is { } rule
+            ? _members.First(m => m.Id == rule.MemberId)
+            : null;
+
+    public bool IsOwner(Guid memberId) => _rules.Any(r => r.MemberId == memberId && r.RuleId == SystemRules.OwnerId);
+
+    /// <summary>Passa a propriedade para outro membro: ele vira owner e o owner atual vira user.</summary>
+    public void TransferOwnership(Guid newOwnerMemberId)
+    {
+        if (IsInternal)
+        {
+            throw new DomainException("A organização FIX não tem owner: é gerida pelo super administrador.");
+        }
+
+        var newOwner = GetMember(newOwnerMemberId);
+        var current = Owner ?? throw new DomainException("A organização está sem owner.");
+        if (current.Id == newOwner.Id)
+        {
+            throw new DomainException("Este membro já é o owner da organização.");
+        }
+
+        _rules.RemoveAll(r => r.MemberId == current.Id && r.RuleId == SystemRules.OwnerId);
+        _rules.Add(OrganizationRule.ForMember(Id, SystemRules.UserId, current.Id));
+        _rules.RemoveAll(r => r.MemberId == newOwner.Id && r.RuleId == SystemRules.UserId);
+        _rules.Add(OrganizationRule.ForMember(Id, SystemRules.OwnerId, newOwner.Id));
     }
 
     public void ChangeMemberDesk(Guid memberId, Desk? desk) => GetMember(memberId).ChangeDesk(desk);
@@ -140,9 +196,14 @@ public sealed class Organization : AggregateRoot
     public void RemoveMember(Guid memberId)
     {
         var member = GetMember(memberId);
-        if (IsFounder(member.Id))
+        if (IsOwner(member.Id))
         {
-            throw new DomainException("O membro founder não pode ser removido da organização.");
+            throw new DomainException("O owner não pode ser removido: transfira a propriedade antes.");
+        }
+
+        if (_rules.Any(r => r.MemberId == member.Id && r.RuleId == SystemRules.SuperAdministradorId))
+        {
+            throw new DomainException("O super administrador não pode ser removido da organização FIX.");
         }
 
         foreach (var group in _groups)
@@ -154,22 +215,109 @@ public sealed class Organization : AggregateRoot
         _members.Remove(member);
     }
 
-    public OrganizationGroup CreateGroup(Name name, IEnumerable<Guid> ruleIds, bool isDefault = false)
+    // ---------- Organograma ----------
+
+    /// <summary>Grupo raiz do organograma (o grupo default, onde está o owner).</summary>
+    public OrganizationGroup RootGroup => _groups.First(g => g.ParentGroupId is null);
+
+    /// <summary>Cria um grupo no organograma, abaixo do grupo pai informado (ou da raiz, se não informado).</summary>
+    public OrganizationGroup CreateGroup(Name name, IEnumerable<Rule> alcadas, Guid? parentGroupId = null)
+    {
+        var parent = parentGroupId is { } id ? GetGroup(id) : RootGroup;
+        var group = AddGroup(name, [], isDefault: false, parent.Id);
+        SetGroupAlcadas(group.Id, alcadas);
+        return group;
+    }
+
+    /// <summary>
+    /// Reposiciona o grupo no organograma, levando junto os grupos abaixo dele. A raiz não se move e um grupo
+    /// não pode ficar abaixo de si mesmo nem de um grupo que está abaixo dele (o organograma continua uma árvore).
+    /// </summary>
+    public void MoveGroup(Guid groupId, Guid parentGroupId)
+    {
+        var group = GetGroup(groupId);
+        var parent = GetGroup(parentGroupId);
+
+        if (group.ParentGroupId is null)
+        {
+            throw new DomainException($"O grupo '{group.Name}' é a raiz do organograma e não pode ficar abaixo de outro grupo.");
+        }
+
+        if (parent.Id == group.Id || AncestorsOf(parent.Id).Contains(group.Id))
+        {
+            throw new DomainException($"O grupo '{group.Name}' não pode ficar abaixo de '{parent.Name}', que está abaixo dele no organograma.");
+        }
+
+        group.MoveUnder(parent.Id);
+    }
+
+    /// <summary>Profundidade do grupo no organograma (raiz = 0).</summary>
+    public int DepthOf(Guid groupId) => AncestorsOf(GetGroup(groupId).Id).Count;
+
+    /// <summary>
+    /// Quem aprova precisa estar num grupo acima de quem pediu: algum grupo do aprovador é ancestral
+    /// (estritamente acima) de algum grupo do solicitante. Solicitante sem grupo fica na base do organograma,
+    /// então qualquer membro que esteja em algum grupo está acima dele. Ninguém está acima de si mesmo.
+    /// </summary>
+    public bool IsAboveInOrgChart(Guid approverUserId, Guid requesterUserId)
+    {
+        if (approverUserId == requesterUserId)
+        {
+            return false;
+        }
+
+        var approverGroups = GroupsOfUser(approverUserId);
+        if (approverGroups.Count == 0)
+        {
+            return false;
+        }
+
+        var requesterGroups = GroupsOfUser(requesterUserId);
+        if (requesterGroups.Count == 0)
+        {
+            return true;
+        }
+
+        return requesterGroups.Any(group => AncestorsOf(group).Overlaps(approverGroups));
+    }
+
+    private OrganizationGroup AddGroup(Name name, IEnumerable<Guid> ruleIds, bool isDefault, Guid? parentGroupId)
     {
         if (_groups.Any(g => g.Name == name))
         {
             throw new DomainException($"Já existe um grupo com o nome '{name}'.");
         }
 
-        var group = new OrganizationGroup(Id, name, isDefault);
+        var group = new OrganizationGroup(Id, name, isDefault, parentGroupId);
         _groups.Add(group);
 
         foreach (var ruleId in ruleIds.Distinct())
         {
-            AssignRuleToGroup(group.Id, ruleId);
+            _rules.Add(OrganizationRule.ForGroup(Id, ruleId, group.Id));
         }
 
         return group;
+    }
+
+    /// <summary>Grupos acima do grupo informado, do pai até a raiz.</summary>
+    private HashSet<Guid> AncestorsOf(Guid groupId)
+    {
+        var ancestors = new HashSet<Guid>();
+        var current = _groups.First(g => g.Id == groupId).ParentGroupId;
+        while (current is { } parentId && ancestors.Add(parentId))
+        {
+            current = _groups.FirstOrDefault(g => g.Id == parentId)?.ParentGroupId;
+        }
+
+        return ancestors;
+    }
+
+    private HashSet<Guid> GroupsOfUser(Guid userId)
+    {
+        var member = _members.FirstOrDefault(m => m.UserId == userId);
+        return member is null
+            ? []
+            : _groups.Where(g => g.Members.Any(gm => gm.MemberId == member.Id)).Select(g => g.Id).ToHashSet();
     }
 
     public void AddMemberToGroup(Guid groupId, Guid memberId)
@@ -179,52 +327,68 @@ public sealed class Organization : AggregateRoot
         group.AddMember(memberId);
     }
 
-    public void AssignRuleToMember(Guid memberId, Guid ruleId)
+    // ---------- Alçadas personalizadas ----------
+
+    /// <summary>Alçadas do membro (sem contar a rule de base owner/user e as herdadas dos grupos).</summary>
+    public IReadOnlyList<Guid> AlcadasOfMember(Guid memberId) =>
+        _rules.Where(r => r.MemberId == memberId && !SystemRules.BaseIds.Contains(r.RuleId)).Select(r => r.RuleId).ToList();
+
+    /// <summary>Substitui as alçadas atribuídas diretamente ao membro (a rule de base não muda).</summary>
+    public void SetMemberAlcadas(Guid memberId, IEnumerable<Rule> alcadas)
     {
-        EnsureAssignable(ruleId);
         GetMember(memberId);
+        var ids = EnsureAlcadas(alcadas);
 
-        if (ruleId == FounderRuleId && _rules.Any(r => r.RuleId == FounderRuleId))
+        _rules.RemoveAll(r => r.MemberId == memberId && !SystemRules.BaseIds.Contains(r.RuleId) && !ids.Contains(r.RuleId));
+        foreach (var id in ids.Where(id => !_rules.Any(r => r.MemberId == memberId && r.RuleId == id)))
         {
-            throw new DomainException("A organização já possui um founder.");
+            _rules.Add(OrganizationRule.ForMember(Id, id, memberId));
         }
-
-        if (_rules.Any(r => r.MemberId == memberId && r.RuleId == ruleId))
-        {
-            return;
-        }
-
-        _rules.Add(OrganizationRule.ForMember(Id, ruleId, memberId));
     }
 
-    public void AssignRuleToGroup(Guid groupId, Guid ruleId)
+    /// <summary>Substitui as alçadas do grupo: todos os membros do grupo recebem as roles delas.</summary>
+    public void SetGroupAlcadas(Guid groupId, IEnumerable<Rule> alcadas)
     {
-        EnsureAssignable(ruleId);
         GetGroup(groupId);
+        var ids = EnsureAlcadas(alcadas);
 
-        if (ruleId == FounderRuleId)
+        _rules.RemoveAll(r => r.GroupId == groupId && !ids.Contains(r.RuleId));
+        foreach (var id in ids.Where(id => !_rules.Any(r => r.GroupId == groupId && r.RuleId == id)))
         {
-            throw new DomainException("A rule founder só pode ser atribuída diretamente a um membro.");
+            _rules.Add(OrganizationRule.ForGroup(Id, id, groupId));
         }
-
-        if (_rules.Any(r => r.GroupId == groupId && r.RuleId == ruleId))
-        {
-            return;
-        }
-
-        _rules.Add(OrganizationRule.ForGroup(Id, ruleId, groupId));
     }
 
-    public bool IsFounder(Guid memberId) =>
-        _rules.Any(r => r.MemberId == memberId && r.RuleId == FounderRuleId);
+    /// <summary>Quantos membros e grupos usam a alçada (para avisar antes de excluí-la).</summary>
+    public int UsagesOf(Guid ruleId) => _rules.Count(r => r.RuleId == ruleId);
 
-    private static void EnsureAssignable(Guid ruleId)
+    /// <summary>Tira a alçada de todos os membros e grupos (a alçada vai ser excluída).</summary>
+    public void RevokeAlcada(Guid ruleId)
     {
-        if (ruleId == SuperAdministradorRuleId)
+        if (!SystemRules.BaseIds.Contains(ruleId))
         {
-            throw new DomainException(
-                "A rule super_administrador é de plataforma e não pode ser atribuída dentro de uma organização.");
+            _rules.RemoveAll(r => r.RuleId == ruleId);
         }
+    }
+
+    /// <summary>Só alçadas personalizadas desta organização podem ser atribuídas (nunca owner/user nem as internas).</summary>
+    private HashSet<Guid> EnsureAlcadas(IEnumerable<Rule> alcadas)
+    {
+        var list = alcadas.ToList();
+        if (list.Count > 0 && IsInternal)
+        {
+            throw new DomainException("A organização FIX não usa alçadas: os papéis internos são fixos.");
+        }
+
+        foreach (var rule in list)
+        {
+            if (rule.IsSystem || rule.OrganizationId != Id)
+            {
+                throw new DomainException($"'{rule.Name}' não é uma alçada desta organização.");
+            }
+        }
+
+        return list.Select(r => r.Id).ToHashSet();
     }
 
     private OrganizationMember GetMember(Guid memberId) =>

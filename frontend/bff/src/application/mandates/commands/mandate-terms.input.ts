@@ -5,7 +5,8 @@ import type { PriceCriteriaInput } from './price-criteria.input.js';
 export interface MandateTermsInput {
   title: string;
   criteria: string | null;
-  commodity: Commodity;
+  /** Obrigatória em mandatos de precificação; opcional nos demais tipos. */
+  commodity: Commodity | null;
   /** Tela/vencimento: N26, fev/27. */
   tenor: string | null;
   quantity: number | null;

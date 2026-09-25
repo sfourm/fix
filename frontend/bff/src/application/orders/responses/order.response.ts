@@ -9,7 +9,8 @@ export interface OrderResponse {
   mandateTitle: string;
   counterpartyId: string;
   counterpartyName: string;
-  commodity: Commodity;
+  /** Ausente em NDF (hedge de moeda, sem commodity). */
+  commodity: Commodity | null;
   terms: OrderTermsResponse;
   approval: ApprovalStatus;
   requestedBy: string;

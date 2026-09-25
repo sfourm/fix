@@ -49,7 +49,7 @@ export const toOrderDto = (o: ContractOrder): OrderDto => ({
   mandateTitle: o.mandateTitle,
   counterpartyId: o.counterpartyId,
   counterpartyName: o.counterpartyName,
-  commodity: commodityEnum.fromContractRequired(o.commodity),
+  commodity: commodityEnum.fromContract(o.commodity),
   terms: {
     type: orderTypeEnum.fromContractRequired(o.terms.type),
     direction: tradeDirectionEnum.fromContractRequired(o.terms.direction),

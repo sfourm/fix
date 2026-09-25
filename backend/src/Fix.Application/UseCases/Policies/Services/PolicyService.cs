@@ -1,15 +1,15 @@
 using Fix.Application.Abstractions.Exceptions;
-using Fix.Application.Abstractions.Messaging;
 using Fix.Application.Common;
+using Fix.Application.Common.Interfaces.UseCases;
 using Fix.Application.Policies.Commands;
 using Fix.Application.Policies.Dtos;
 using Fix.Application.Policies.Mappers;
 using Fix.Application.Policies.Queries;
 using Fix.Domain.Abstractions;
-using Fix.Domain.Common;
 using Fix.Domain.AggregateRoots.Organizations.Repositories;
 using Fix.Domain.AggregateRoots.Policies;
 using Fix.Domain.AggregateRoots.Policies.Repositories;
+using Fix.Domain.Common;
 
 namespace Fix.Application.Policies.Services;
 
@@ -18,28 +18,11 @@ internal sealed class PolicyService(
     IOrganizationRepository organizationRepository,
     TimeProvider timeProvider,
     IUnitOfWork unitOfWork)
-    : ICommandHandler<CreatePolicyCommand, PolicyDto>,
-      ICommandHandler<UpdatePolicyCommand, PolicyDto>,
-      ICommandHandler<UpdatePolicyLimitsCommand, PolicyDto>,
-      ICommandHandler<SubmitPolicyCommand, PolicyDto>,
-      ICommandHandler<ApprovePolicyCommand, PolicyDto>,
-      ICommandHandler<OpenPolicyVersionCommand, PolicyDto>,
-      ICommandHandler<DeletePolicyCommand, Unit>,
-      ICommandHandler<AddPolicyAxisCommand, PolicyDto>,
-      ICommandHandler<UpdatePolicyAxisCommand, PolicyDto>,
-      ICommandHandler<RemovePolicyAxisCommand, PolicyDto>,
-      ICommandHandler<AddCoverageBandCommand, PolicyDto>,
-      ICommandHandler<UpdateCoverageBandCommand, PolicyDto>,
-      ICommandHandler<RemoveCoverageBandCommand, PolicyDto>,
-      ICommandHandler<AddPolicyInstrumentCommand, PolicyDto>,
-      ICommandHandler<UpdatePolicyInstrumentCommand, PolicyDto>,
-      ICommandHandler<RemovePolicyInstrumentCommand, PolicyDto>,
-      IQueryHandler<GetPolicyQuery, PolicyDto>,
-      IQueryHandler<ListPoliciesQuery, PagedList<PolicySummaryDto>>
+    : IPolicyService
 {
     // ---------- Commands: política ----------
 
-    public async Task<PolicyDto> HandleAsync(CreatePolicyCommand command, CancellationToken cancellationToken)
+    public async Task<PolicyDto> CreatePolicyAsync(CreatePolicyCommand command, CancellationToken cancellationToken)
     {
         await EnsureUniqueCodeAsync(command.Code, null, cancellationToken);
 
@@ -66,7 +49,7 @@ internal sealed class PolicyService(
         return policy.ToDto();
     }
 
-    public async Task<PolicyDto> HandleAsync(UpdatePolicyCommand command, CancellationToken cancellationToken)
+    public async Task<PolicyDto> UpdatePolicyAsync(UpdatePolicyCommand command, CancellationToken cancellationToken)
     {
         await EnsureUniqueCodeAsync(command.Code, command.Id, cancellationToken);
 
@@ -77,14 +60,14 @@ internal sealed class PolicyService(
             DateRange.Create(command.ValidFrom, command.ValidTo)), cancellationToken);
     }
 
-    public Task<PolicyDto> HandleAsync(UpdatePolicyLimitsCommand command, CancellationToken cancellationToken) =>
+    public Task<PolicyDto> UpdatePolicyLimitsAsync(UpdatePolicyLimitsCommand command, CancellationToken cancellationToken) =>
         ChangeAsync(command.Id, p => p.UpdateLimits(command.Limits.ToDomain()), cancellationToken);
 
-    public Task<PolicyDto> HandleAsync(SubmitPolicyCommand command, CancellationToken cancellationToken) =>
+    public Task<PolicyDto> SubmitPolicyAsync(SubmitPolicyCommand command, CancellationToken cancellationToken) =>
         ChangeAsync(command.Id, p => p.Submit(timeProvider.Today()), cancellationToken);
 
     /// <summary>Aprova com ata; a política vigente anterior da companhia passa a "substituída".</summary>
-    public async Task<PolicyDto> HandleAsync(ApprovePolicyCommand command, CancellationToken cancellationToken)
+    public async Task<PolicyDto> ApprovePolicyAsync(ApprovePolicyCommand command, CancellationToken cancellationToken)
     {
         var policy = await GetAsync(command.Id, cancellationToken);
         var today = timeProvider.Today();
@@ -100,10 +83,10 @@ internal sealed class PolicyService(
         return policy.ToDto();
     }
 
-    public Task<PolicyDto> HandleAsync(OpenPolicyVersionCommand command, CancellationToken cancellationToken) =>
+    public Task<PolicyDto> OpenPolicyVersionAsync(OpenPolicyVersionCommand command, CancellationToken cancellationToken) =>
         ChangeAsync(command.Id, p => p.OpenNewVersion(command.Version, command.Reason, timeProvider.Today()), cancellationToken);
 
-    public async Task<Unit> HandleAsync(DeletePolicyCommand command, CancellationToken cancellationToken)
+    public async Task DeletePolicyAsync(DeletePolicyCommand command, CancellationToken cancellationToken)
     {
         var policy = await GetAsync(command.Id, cancellationToken);
 
@@ -119,13 +102,11 @@ internal sealed class PolicyService(
 
         policyRepository.Remove(policy);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Unit.Value;
     }
 
     // ---------- Commands: eixos, bandas e instrumentos ----------
 
-    public Task<PolicyDto> HandleAsync(AddPolicyAxisCommand command, CancellationToken cancellationToken) =>
+    public Task<PolicyDto> AddPolicyAxisAsync(AddPolicyAxisCommand command, CancellationToken cancellationToken) =>
         ChangeAsync(command.PolicyId, p => p.AddAxis(
             command.Axis.Code,
             Title.Create(command.Axis.Title),
@@ -135,7 +116,7 @@ internal sealed class PolicyService(
             command.Axis.Approver,
             command.Axis.Restrictions), cancellationToken);
 
-    public Task<PolicyDto> HandleAsync(UpdatePolicyAxisCommand command, CancellationToken cancellationToken) =>
+    public Task<PolicyDto> UpdatePolicyAxisAsync(UpdatePolicyAxisCommand command, CancellationToken cancellationToken) =>
         ChangeAsync(command.PolicyId, p => p.UpdateAxis(
             command.AxisId,
             command.Axis.Code,
@@ -146,7 +127,7 @@ internal sealed class PolicyService(
             command.Axis.Approver,
             command.Axis.Restrictions), cancellationToken);
 
-    public async Task<PolicyDto> HandleAsync(RemovePolicyAxisCommand command, CancellationToken cancellationToken)
+    public async Task<PolicyDto> RemovePolicyAxisAsync(RemovePolicyAxisCommand command, CancellationToken cancellationToken)
     {
         if (await policyRepository.AxisHasMandatesAsync(command.AxisId, cancellationToken))
         {
@@ -156,7 +137,7 @@ internal sealed class PolicyService(
         return await ChangeAsync(command.PolicyId, p => p.RemoveAxis(command.AxisId), cancellationToken);
     }
 
-    public Task<PolicyDto> HandleAsync(AddCoverageBandCommand command, CancellationToken cancellationToken) =>
+    public Task<PolicyDto> AddCoverageBandAsync(AddCoverageBandCommand command, CancellationToken cancellationToken) =>
         ChangeAsync(command.PolicyId, p => p.AddBand(
             command.Band.Horizon,
             CropYear.Create(command.Band.Crop),
@@ -164,7 +145,7 @@ internal sealed class PolicyService(
             command.Band.MaxPct,
             command.Band.Note), cancellationToken);
 
-    public Task<PolicyDto> HandleAsync(UpdateCoverageBandCommand command, CancellationToken cancellationToken) =>
+    public Task<PolicyDto> UpdateCoverageBandAsync(UpdateCoverageBandCommand command, CancellationToken cancellationToken) =>
         ChangeAsync(command.PolicyId, p => p.UpdateBand(
             command.BandId,
             command.Band.Horizon,
@@ -173,31 +154,31 @@ internal sealed class PolicyService(
             command.Band.MaxPct,
             command.Band.Note), cancellationToken);
 
-    public Task<PolicyDto> HandleAsync(RemoveCoverageBandCommand command, CancellationToken cancellationToken) =>
+    public Task<PolicyDto> RemoveCoverageBandAsync(RemoveCoverageBandCommand command, CancellationToken cancellationToken) =>
         ChangeAsync(command.PolicyId, p => p.RemoveBand(command.BandId), cancellationToken);
 
-    public Task<PolicyDto> HandleAsync(AddPolicyInstrumentCommand command, CancellationToken cancellationToken) =>
+    public Task<PolicyDto> AddPolicyInstrumentAsync(AddPolicyInstrumentCommand command, CancellationToken cancellationToken) =>
         ChangeAsync(command.PolicyId, p => p.AddInstrument(
             command.Instrument.Name,
             command.Instrument.Permission,
             command.Instrument.Condition), cancellationToken);
 
-    public Task<PolicyDto> HandleAsync(UpdatePolicyInstrumentCommand command, CancellationToken cancellationToken) =>
+    public Task<PolicyDto> UpdatePolicyInstrumentAsync(UpdatePolicyInstrumentCommand command, CancellationToken cancellationToken) =>
         ChangeAsync(command.PolicyId, p => p.UpdateInstrument(
             command.InstrumentId,
             command.Instrument.Name,
             command.Instrument.Permission,
             command.Instrument.Condition), cancellationToken);
 
-    public Task<PolicyDto> HandleAsync(RemovePolicyInstrumentCommand command, CancellationToken cancellationToken) =>
+    public Task<PolicyDto> RemovePolicyInstrumentAsync(RemovePolicyInstrumentCommand command, CancellationToken cancellationToken) =>
         ChangeAsync(command.PolicyId, p => p.RemoveInstrument(command.InstrumentId), cancellationToken);
 
     // ---------- Queries ----------
 
-    public async Task<PolicyDto> HandleAsync(GetPolicyQuery query, CancellationToken cancellationToken) =>
+    public async Task<PolicyDto> GetPolicyAsync(GetPolicyQuery query, CancellationToken cancellationToken) =>
         (await GetAsync(query.Id, cancellationToken)).ToDto();
 
-    public async Task<PagedList<PolicySummaryDto>> HandleAsync(ListPoliciesQuery query, CancellationToken cancellationToken)
+    public async Task<PagedList<PolicySummaryDto>> ListPoliciesAsync(ListPoliciesQuery query, CancellationToken cancellationToken)
     {
         var (page, pageSize) = Paging.Normalize(query.Page, query.PageSize);
         var policies = await policyRepository.ListAsync(page, pageSize, cancellationToken);

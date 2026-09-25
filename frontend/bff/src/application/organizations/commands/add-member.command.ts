@@ -4,6 +4,7 @@ import type { RequestContext } from '../../../cross-cutting/context/request-cont
 export interface AddMemberCommand {
   context: RequestContext;
   email: string;
-  ruleCode: string;
+  /** Alçada inicial (opcional): código de uma alçada da organização. */
+  ruleCode: string | null;
   desk: Desk | null;
 }

@@ -92,6 +92,20 @@ export function currentOrganizationRoutes(organizations: OrganizationService): R
     res.json(await organizations.changeMemberDesk({ context: organizationContext(req), memberId: id, desk }));
   });
 
+  /** Alçadas do membro (substitui as atribuídas diretamente; a base owner/user não muda). */
+  router.put('/members/:id/rules', async (req, res) => {
+    const { id } = parse(idParam, req.params);
+    const { ruleCodes } = parse(schemas.ruleCodes, req.body);
+    res.json(await organizations.setMemberRules({ context: organizationContext(req), memberId: id, ruleCodes }));
+  });
+
+  /** Owner: transfere a propriedade (o anterior vira user). */
+  router.post('/owner', async (req, res) => {
+    const { memberId } = parse(schemas.transferOwnership, req.body);
+    await organizations.transferOwnership({ context: organizationContext(req), memberId });
+    res.status(204).end();
+  });
+
   router.delete('/members/:id', async (req, res) => {
     const { id } = parse(idParam, req.params);
     await organizations.removeMember({ context: organizationContext(req), memberId: id });
@@ -107,6 +121,19 @@ export function currentOrganizationRoutes(organizations: OrganizationService): R
   router.post('/groups', async (req, res) => {
     const body = parse(schemas.createGroup, req.body);
     res.status(201).json(await organizations.createGroup({ context: organizationContext(req), ...body }));
+  });
+
+  /** Organograma: muda o grupo pai (a organização mantém a própria hierarquia). */
+  router.patch('/groups/:id/parent', async (req, res) => {
+    const { id } = parse(idParam, req.params);
+    const { parentGroupId } = parse(schemas.moveGroup, req.body);
+    res.json(await organizations.moveGroup({ context: organizationContext(req), groupId: id, parentGroupId }));
+  });
+
+  router.put('/groups/:id/rules', async (req, res) => {
+    const { id } = parse(idParam, req.params);
+    const { ruleCodes } = parse(schemas.ruleCodes, req.body);
+    res.json(await organizations.setGroupRules({ context: organizationContext(req), groupId: id, ruleCodes }));
   });
 
   router.post('/groups/:id/members', async (req, res) => {

@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useOrganizationStore } from '@/application/stores/organization.store';
 import { useQueueStore } from '@/application/stores/queue.store';
 import { useSessionStore } from '@/application/stores/session.store';
-import { Permission, type PermissionCode } from '@/domain/permissions';
+import { AREAS, isTabActive, type AreaTab } from '../navigation';
 
 const session = useSessionStore();
 const organization = useOrganizationStore();
@@ -12,51 +12,20 @@ const queue = useQueueStore();
 const router = useRouter();
 const route = useRoute();
 
-interface NavItem {
-  to: string;
-  label: string;
-  permission?: PermissionCode;
-  count?: () => number;
-  sub?: boolean;
-}
-
-/** Menu na ordem do processo do FIX: configurar → autorizar → operar → acompanhar. */
-const sections: { title: string | null; items: NavItem[] }[] = [
-  { title: null, items: [{ to: '/', label: 'Visão geral' }] },
-  {
-    title: '1 · Configurar',
-    items: [
-      { to: '/setup', label: 'Setup da companhia' },
-      { to: '/counterparties', label: 'Contrapartes', permission: Permission.ViewCounterparties, sub: true },
-      { to: '/members', label: 'Membros e grupos', permission: Permission.ViewUsers, sub: true },
-      { to: '/access', label: 'Rules e alçadas', sub: true },
-      { to: '/policies', label: 'Política de riscos', permission: Permission.ViewPolicy },
-    ],
-  },
-  { title: '2 · Autorizar', items: [{ to: '/mandates', label: 'Mandatos', permission: Permission.ViewMandate }] },
-  {
-    title: '3 · Operar',
-    items: [
-      { to: '/orders', label: 'Boletas de hedge', permission: Permission.ViewOrder },
-      { to: '/orders/open', label: 'Boletas em aberto', permission: Permission.ViewOrder, sub: true, count: () => queue.openConfirmations },
-      { to: '/approvals', label: 'Fila de aprovação', count: () => queue.pendingApprovals },
-    ],
-  },
-  { title: '4 · Acompanhar', items: [{ to: '/timeline', label: 'Timeline' }] },
-];
-
-const nav = computed(() =>
-  sections
-    .map((section) => ({ ...section, items: section.items.filter((i) => !i.permission || organization.can(i.permission)) }))
-    .filter((section) => section.items.length > 0),
+/** Áreas e abas visíveis para as roles do usuário (área sem nenhuma aba visível some do menu). */
+const areas = computed(() =>
+  AREAS.map((area) => ({ ...area, tabs: area.tabs.filter((t) => !t.permission || organization.can(t.permission)) })).filter(
+    (area) => area.tabs.length > 0,
+  ),
 );
 
-// '/orders' não deve ficar ativo em '/orders/open'; as demais rotas marcam o item pelo prefixo.
-function isActive(item: NavItem): boolean {
-  if (item.to === '/') return route.path === '/';
-  if (item.to === '/orders') return route.path === '/orders' || /^\/orders\/(?!open$)/.test(route.path);
-  return route.path === item.to || route.path.startsWith(`${item.to}/`);
-}
+const currentArea = computed(() => areas.value.find((area) => area.tabs.some((tab) => isTabActive(tab, route.path))) ?? null);
+
+const count = (tab: AreaTab) =>
+  tab.counter === 'approvals' ? queue.pendingApprovals : tab.counter === 'confirmations' ? queue.openConfirmations : 0;
+
+/** Pendências de uma área inteira, exibidas no item do menu lateral. */
+const areaCount = (tabs: AreaTab[]) => tabs.reduce((sum, tab) => sum + count(tab), 0);
 
 // Navega antes de limpar o tenant: trocar a key do RouterView remontaria a view atual, que faria novas chamadas.
 async function switchOrganization() {
@@ -87,20 +56,18 @@ watch(() => organization.currentId, (id) => id && queue.refresh());
         </div>
       </div>
 
-      <nav class="nav">
-        <template v-for="section in nav" :key="section.title ?? 'home'">
-          <span v-if="section.title" class="nav-section">{{ section.title }}</span>
-          <RouterLink
-            v-for="item in section.items"
-            :key="item.to"
-            :to="item.to"
-            class="nav-link"
-            :class="{ active: isActive(item), sub: item.sub }"
-          >
-            <span>{{ item.label }}</span>
-            <span v-if="item.count && item.count() > 0" class="badge badge-warning">{{ item.count() }}</span>
-          </RouterLink>
-        </template>
+      <nav class="nav" aria-label="Menu principal">
+        <RouterLink
+          v-for="area in areas"
+          :key="area.key"
+          :to="area.tabs[0]!.to"
+          class="nav-link"
+          :class="{ active: currentArea?.key === area.key }"
+          :aria-current="currentArea?.key === area.key ? 'page' : undefined"
+        >
+          <span>{{ area.label }}</span>
+          <span v-if="areaCount(area.tabs) > 0" class="badge badge-warning">{{ areaCount(area.tabs) }}</span>
+        </RouterLink>
       </nav>
 
       <div class="user">
@@ -113,6 +80,21 @@ watch(() => organization.currentId, (id) => id && queue.refresh());
     </aside>
 
     <main class="content">
+      <p v-if="organization.internalAccess" class="alert alert-info support-banner" role="note">
+        <strong>Acesso de suporte FIX.</strong> Você vê e edita esta organização para apoiá-la; aprovações, confirmations e a alçada de emissão ficam com ela.
+      </p>
+      <nav v-if="currentArea && currentArea.tabs.length > 1" class="tabs area-tabs" :aria-label="currentArea.label">
+        <RouterLink
+          v-for="tab in currentArea.tabs"
+          :key="tab.to"
+          :to="tab.to"
+          class="tab"
+          :class="{ active: isTabActive(tab, route.path) }"
+        >
+          {{ tab.label }}
+          <span v-if="count(tab) > 0" class="badge badge-warning">{{ count(tab) }}</span>
+        </RouterLink>
+      </nav>
       <RouterView :key="organization.currentId ?? ''" />
     </main>
   </div>
@@ -178,30 +160,18 @@ watch(() => organization.currentId, (id) => id && queue.refresh());
   overflow-y: auto;
 }
 
-.nav-section {
-  margin: 12px 10px 4px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
 
 .nav-link {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 7px 10px;
+  padding: 10px 12px;
   border-radius: var(--radius-sm);
   color: var(--text);
   font-weight: 500;
 }
 
-.nav-link.sub {
-  padding-left: 22px;
-  font-size: 0.92rem;
-}
 
 .nav-link:hover {
   background: var(--surface-2);
@@ -211,6 +181,21 @@ watch(() => organization.currentId, (id) => id && queue.refresh());
 .nav-link.active {
   background: var(--primary-soft);
   color: var(--primary);
+}
+
+.support-banner {
+  margin: -8px 0 16px;
+}
+
+.area-tabs {
+  margin: -8px 0 20px;
+}
+
+.area-tabs .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
 }
 
 .user {

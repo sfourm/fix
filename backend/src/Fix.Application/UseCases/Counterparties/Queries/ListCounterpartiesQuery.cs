@@ -7,6 +7,9 @@ using Fix.Domain.AggregateRoots.Roles;
 namespace Fix.Application.Counterparties.Queries;
 
 [RequireRole(RoleCodes.ViewCounterparties)]
-public sealed record ListCounterpartiesQuery(Guid UserId, Guid OrganizationId, bool OnlyHomologated)
+public sealed record ListCounterpartiesQuery(
+    Guid UserId,
+    Guid OrganizationId,
+    bool OnlyHomologated)
     : IQuery<IReadOnlyList<CounterpartyDto>>, IOrganizationRequest;
 

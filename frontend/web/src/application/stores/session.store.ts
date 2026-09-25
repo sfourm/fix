@@ -16,6 +16,8 @@ export const useSessionStore = defineStore('session', () => {
   const token = computed(() => (isValid(session.value) ? session.value.token : null));
   const user = computed(() => session.value?.user ?? null);
   const isAuthenticated = computed(() => token.value !== null);
+  /** Papel na equipe interna FIX (super_administrador, administrador) ou null para usuários de clientes. */
+  const internalRole = computed(() => user.value?.roles.find((r) => r === 'super_administrador' || r === 'administrador') ?? null);
 
   function start(value: Session) {
     session.value = value;
@@ -35,5 +37,5 @@ export const useSessionStore = defineStore('session', () => {
     storage.remove(STORAGE_KEY);
   }
 
-  return { session, token, user, isAuthenticated, login, register, logout };
+  return { session, token, user, isAuthenticated, internalRole, login, register, logout };
 });

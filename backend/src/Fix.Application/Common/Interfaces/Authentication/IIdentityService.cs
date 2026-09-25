@@ -14,7 +14,4 @@ public interface IIdentityService
     Task<UserInfo?> FindByEmailAsync(string email, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<UserInfo>> GetUsersAsync(IReadOnlyCollection<Guid> userIds, CancellationToken cancellationToken);
-
-    /// <summary>Consulta na base se o usuário possui a role de plataforma super_administrador.</summary>
-    Task<bool> IsSuperAdministratorAsync(Guid userId, CancellationToken cancellationToken);
 }

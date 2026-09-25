@@ -11,6 +11,10 @@ export interface Organization {
   id: string;
   name: string;
   slug: string;
+  /** Organização nativa da FIX (equipe interna). */
+  isInternal: boolean;
+  /** O usuário vê a organização pelo acesso interno FIX (suporte: vê e edita, não decide). */
+  internalAccess: boolean;
 }
 
 export interface CompanyProfile {
@@ -76,6 +80,10 @@ export interface Member {
   email: string;
   fullName: string;
   desk: Desk | null;
+  /** Base: owner, user (na FIX: super_administrador, administrador). */
+  role: string;
+  isOwner: boolean;
+  /** Alçadas atribuídas diretamente ao membro. */
   rules: string[];
   groups: string[];
 }
@@ -86,4 +94,8 @@ export interface Group {
   isDefault: boolean;
   rules: string[];
   memberIds: string[];
+  /** Grupo acima no organograma; null só na raiz. */
+  parentGroupId: string | null;
+  /** Nível no organograma (0 = raiz). */
+  depth: number;
 }

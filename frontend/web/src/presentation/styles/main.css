@@ -21,6 +21,17 @@
   --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 3px rgb(16 24 40 / 8%);
   --shadow-lg: 0 12px 32px rgb(16 24 40 / 18%);
   --sidebar-w: 240px;
+  /* Paleta categórica dos gráficos (ordem fixa, validada para daltonismo); cada tema tem seus passos. */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #4a3aa7;
+  --series-8: #e34948;
+  --chart-grid: #e8e9ef;
+  --chart-axis: #8a90a2;
   color-scheme: light;
   font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 15px;
@@ -48,6 +59,16 @@
     --warning-soft: #33280f;
     --info: #38bdf8;
     --info-soft: #102a3a;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+    --series-8: #e66767;
+    --chart-grid: #262b39;
+    --chart-axis: #7d8599;
     --shadow: 0 1px 2px rgb(0 0 0 / 40%);
     --shadow-lg: 0 12px 32px rgb(0 0 0 / 55%);
     color-scheme: dark;

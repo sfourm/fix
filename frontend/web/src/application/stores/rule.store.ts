@@ -1,18 +1,24 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { isAssignableRule, type Rule } from '@/domain/rule';
+import { baseRoleLabel, type Rule } from '@/domain/rule';
 import { useApi } from '../api-provider';
+import { useOrganizationStore } from './organization.store';
 
-/** Rules do sistema (conjuntos de roles, fixas, carregadas uma vez). */
+/** Rules da organização atual (owner, user e alçadas). Recarregadas ao trocar de organização ou editar alçadas. */
 export const useRuleStore = defineStore('rules', () => {
   const rules = ref<Rule[]>([]);
+  let loadedFor: string | null = null;
   let loading: Promise<void> | null = null;
 
-  /** Rules que podem ser atribuídas dentro de uma organização. */
-  const assignable = computed(() => rules.value.filter(isAssignableRule));
+  /** Alçadas personalizadas da organização (as únicas atribuíveis a membros e grupos). */
+  const alcadas = computed(() => rules.value.filter((r) => !r.isSystem));
 
-  function load(): Promise<void> {
-    loading ??= useApi()
+  function load(force = false): Promise<void> {
+    const organizationId = useOrganizationStore().currentId;
+    if (!force && loading && loadedFor === organizationId) return loading;
+
+    loadedFor = organizationId;
+    loading = useApi()
       .rules.list()
       .then((list) => {
         rules.value = list;
@@ -26,8 +32,8 @@ export const useRuleStore = defineStore('rules', () => {
   }
 
   function nameOf(code: string): string {
-    return rules.value.find((r) => r.code === code)?.name ?? code;
+    return rules.value.find((r) => r.code === code)?.name ?? baseRoleLabel[code] ?? code;
   }
 
-  return { rules, assignable, load, nameOf };
+  return { rules, alcadas, load, nameOf };
 });

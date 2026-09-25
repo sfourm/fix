@@ -15,6 +15,8 @@ export interface ContractOrganization {
   id: string;
   name: string;
   slug: string;
+  isInternal?: boolean;
+  internalAccess?: boolean;
 }
 
 export interface ContractCommodity {
@@ -60,6 +62,8 @@ export interface ContractMember {
   desk: string;
   rules: string[];
   groups: string[];
+  role: string;
+  isOwner: boolean;
 }
 
 export interface ContractGroup {
@@ -68,11 +72,19 @@ export interface ContractGroup {
   isDefault: boolean;
   rules: string[];
   memberIds: string[];
+  parentGroupId?: string;
+  depth: number;
 }
 
 // ---------- contrato → dto ----------
 
-export const toOrganizationDto = (o: ContractOrganization): OrganizationDto => ({ id: o.id, name: o.name, slug: o.slug });
+export const toOrganizationDto = (o: ContractOrganization): OrganizationDto => ({
+  id: o.id,
+  name: o.name,
+  slug: o.slug,
+  isInternal: o.isInternal ?? false,
+  internalAccess: o.internalAccess ?? false,
+});
 
 export const toCommodityDto = (c: ContractCommodity): CommodityDto => ({
   id: c.id,
@@ -133,6 +145,8 @@ export const toMemberDto = (m: ContractMember): MemberDto => ({
   email: m.email,
   fullName: m.fullName,
   desk: deskEnum.fromContract(m.desk),
+  role: m.role || 'user',
+  isOwner: m.isOwner,
   rules: m.rules,
   groups: m.groups,
 });
@@ -143,6 +157,8 @@ export const toGroupDto = (g: ContractGroup): GroupDto => ({
   isDefault: g.isDefault,
   rules: g.rules,
   memberIds: g.memberIds,
+  parentGroupId: nullable(g.parentGroupId),
+  depth: g.depth,
 });
 
 // ---------- command → contrato (campos optional nulos são omitidos pelo proto-loader) ----------

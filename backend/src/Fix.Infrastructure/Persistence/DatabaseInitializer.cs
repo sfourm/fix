@@ -1,4 +1,4 @@
-using Fix.Domain.AggregateRoots.Rules;
+using Fix.Domain.AggregateRoots.Organizations;
 using Fix.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -11,35 +11,49 @@ namespace Fix.Infrastructure.Persistence;
 public static class DatabaseInitializer
 {
     /// <summary>
-    /// Aplica as migrations, garante a role de plataforma super_administrador no Identity
-    /// e, se configurado (Seed:SuperAdministrator), cria o usuário super administrador.
+    /// Aplica as migrations e garante a organização nativa FIX com o super administrador (Seed:SuperAdministrator).
+    /// A equipe interna é definida pela membership na organização FIX, não por roles do Identity.
     /// </summary>
     public static async Task InitializeDatabaseAsync(this IServiceProvider services)
     {
         await using var scope = services.CreateAsyncScope();
         var provider = scope.ServiceProvider;
         var logger = provider.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(DatabaseInitializer));
+        var dbContext = provider.GetRequiredService<FixDbContext>();
 
-        await provider.GetRequiredService<FixDbContext>().Database.MigrateAsync();
+        await dbContext.Database.MigrateAsync();
 
-        var roleManager = provider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
-        if (!await roleManager.RoleExistsAsync(RuleCodes.SuperAdministrador))
+        if (await dbContext.Organizations.AnyAsync(o => o.Id == Organization.InternalOrganizationId))
         {
-            await roleManager.CreateAsync(new IdentityRole<Guid>(RuleCodes.SuperAdministrador) { Id = Guid.CreateVersion7() });
+            return;
         }
 
+        var superAdministrator = await EnsureSuperAdministratorAsync(provider, logger);
+        if (superAdministrator is null)
+        {
+            logger.LogWarning("Organização FIX não criada: configure Seed:SuperAdministrator (Email, Password, FullName).");
+            return;
+        }
+
+        dbContext.Organizations.Add(Organization.CreateInternal(superAdministrator.Id));
+        await dbContext.SaveChangesAsync();
+        logger.LogInformation("Organização FIX criada com o super administrador {Email}.", superAdministrator.Email);
+    }
+
+    private static async Task<ApplicationUser?> EnsureSuperAdministratorAsync(IServiceProvider provider, ILogger logger)
+    {
         var seed = provider.GetRequiredService<IConfiguration>().GetSection("Seed:SuperAdministrator");
         var email = seed["Email"];
         var password = seed["Password"];
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
         {
-            return;
+            return null;
         }
 
         var userManager = provider.GetRequiredService<UserManager<ApplicationUser>>();
-        if (await userManager.FindByEmailAsync(email) is not null)
+        if (await userManager.FindByEmailAsync(email) is { } existing)
         {
-            return;
+            return existing;
         }
 
         var user = new ApplicationUser
@@ -56,11 +70,9 @@ public static class DatabaseInitializer
         {
             logger.LogWarning("Não foi possível criar o super administrador: {Errors}",
                 string.Join("; ", result.Errors.Select(e => e.Description)));
-            return;
+            return null;
         }
 
-        await userManager.AddToRoleAsync(user, RuleCodes.SuperAdministrador);
-        logger.LogInformation("Super administrador {Email} criado.", email);
+        return user;
     }
 }
-

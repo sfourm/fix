@@ -3,6 +3,10 @@ import type { AddGroupMemberCommand } from '../commands/add-group-member.command
 import type { AddMemberCommand } from '../commands/add-member.command.js';
 import type { ChangeMemberDeskCommand } from '../commands/change-member-desk.command.js';
 import type { CreateGroupCommand } from '../commands/create-group.command.js';
+import type { MoveGroupCommand } from '../commands/move-group.command.js';
+import type { SetGroupRulesCommand } from '../commands/set-group-rules.command.js';
+import type { SetMemberRulesCommand } from '../commands/set-member-rules.command.js';
+import type { TransferOwnershipCommand } from '../commands/transfer-ownership.command.js';
 import type { CreateOrganizationCommand } from '../commands/create-organization.command.js';
 import type { RemoveCommodityCommand } from '../commands/remove-commodity.command.js';
 import type { RemoveMemberCommand } from '../commands/remove-member.command.js';
@@ -35,7 +39,11 @@ export interface OrganizationGateway {
   addMember(command: AddMemberCommand): Promise<string>;
   changeMemberDesk(command: ChangeMemberDeskCommand): Promise<void>;
   removeMember(command: RemoveMemberCommand): Promise<void>;
+  setMemberRules(command: SetMemberRulesCommand): Promise<void>;
+  transferOwnership(command: TransferOwnershipCommand): Promise<void>;
+  setGroupRules(command: SetGroupRulesCommand): Promise<void>;
   createGroup(command: CreateGroupCommand): Promise<string>;
+  moveGroup(command: MoveGroupCommand): Promise<void>;
   addGroupMember(command: AddGroupMemberCommand): Promise<void>;
   listForUser(query: ListUserOrganizationsQuery): Promise<OrganizationDto[]>;
   get(query: GetOrganizationQuery): Promise<OrganizationSetupDto>;

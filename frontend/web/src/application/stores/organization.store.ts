@@ -15,6 +15,10 @@ export const useOrganizationStore = defineStore('organization', () => {
   const roles = ref<Set<string>>(new Set());
 
   const hasOrganization = computed(() => currentId.value !== null);
+  /** Como o usuário acessa a organização atual: membro ou suporte interno FIX (vê e edita, não decide). */
+  const currentEntry = computed(() => organizations.value.find((o) => o.id === currentId.value) ?? null);
+  const internalAccess = computed(() => currentEntry.value?.internalAccess ?? false);
+  const isInternalOrganization = computed(() => currentEntry.value?.isInternal ?? false);
 
   function can(role: PermissionCode): boolean {
     return roles.value.has(role);
@@ -39,7 +43,11 @@ export const useOrganizationStore = defineStore('organization', () => {
   /** Recarrega setup e roles (ex.: após trocar de tenant ou alterar rules de membros). */
   async function refresh() {
     const api = useApi();
-    const [setup, userRoles] = await Promise.all([api.organizations.setup(), api.organizations.roles()]);
+    const [setup, userRoles] = await Promise.all([
+      api.organizations.setup(),
+      api.organizations.roles(),
+      organizations.value.length ? Promise.resolve() : loadMine(),
+    ]);
     current.value = setup;
     roles.value = new Set(userRoles);
   }
@@ -47,7 +55,7 @@ export const useOrganizationStore = defineStore('organization', () => {
   /** Aplica o setup devolvido pelas operações de edição (evita um GET extra). */
   function applySetup(setup: OrganizationSetup) {
     current.value = setup;
-    organizations.value = organizations.value.map((o) => (o.id === setup.id ? { id: o.id, name: setup.name, slug: setup.slug } : o));
+    organizations.value = organizations.value.map((o) => (o.id === setup.id ? { ...o, name: setup.name, slug: setup.slug } : o));
   }
 
   async function create(name: string) {
@@ -80,6 +88,8 @@ export const useOrganizationStore = defineStore('organization', () => {
     organizations,
     roles,
     hasOrganization,
+    internalAccess,
+    isInternalOrganization,
     can,
     loadMine,
     select,

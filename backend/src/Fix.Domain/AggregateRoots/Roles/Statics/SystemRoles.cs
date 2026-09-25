@@ -45,6 +45,20 @@ public static class SystemRoles
         RoleCodes.ViewCounterparties,
     ];
 
+    /// <summary>Decisões operacionais: ficam sempre com a própria organização (a equipe FIX não decide por ela).</summary>
+    public static readonly IReadOnlySet<string> Decisions = new HashSet<string>
+    {
+        RoleCodes.ApprovePolicy,
+        RoleCodes.ApproveMandate,
+        RoleCodes.ApproveException,
+        RoleCodes.ApproveOrder,
+        RoleCodes.ManageConfirmation,
+        RoleCodes.SelfApprove,
+    };
+
+    /// <summary>O que a equipe interna FIX pode fazer numa organização cliente: ver e editar tudo, sem decidir.</summary>
+    public static readonly IReadOnlyList<string> Staff = [.. All.Where(code => !Decisions.Contains(code))];
+
     public static Guid Id(string code) => DeterministicGuid.From($"role:{code}");
 }
 

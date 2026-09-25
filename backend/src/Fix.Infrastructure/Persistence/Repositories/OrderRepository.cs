@@ -28,7 +28,9 @@ internal sealed class OrderRepository(FixDbContext dbContext) : IOrderRepository
             query = query.Where(o => o.Confirmation == confirmation);
         }
 
-        return query.OrderByDescending(o => o.Id).ToPagedListAsync(page, pageSize, cancellationToken);
+        return query
+            .OrderByDescending(o => o.Id)
+            .ToPagedListAsync(page, pageSize, cancellationToken);
     }
 
     public void Add(Order order) => dbContext.Orders.Add(order);

@@ -10,6 +10,8 @@ internal static class OrganizationContractMapper
         Id = organization.Id.ToString(),
         Name = organization.Name,
         Slug = organization.Slug,
+        IsInternal = organization.IsInternal,
+        InternalAccess = organization.InternalAccess,
     };
 
     public static Contract.OrganizationSetup ToContract(this OrganizationSetupDto setup) => new()
@@ -33,16 +35,29 @@ internal static class OrganizationContractMapper
         Desk = member.Desk.ToContract<Contract.Desk>(),
         Rules = { member.Rules },
         Groups = { member.Groups },
+        Role = member.Role,
+        IsOwner = member.IsOwner,
     };
 
-    public static Contract.Group ToContract(this GroupDto group) => new()
+    public static Contract.Group ToContract(this GroupDto group)
     {
-        Id = group.Id.ToString(),
-        Name = group.Name,
-        IsDefault = group.IsDefault,
-        Rules = { group.Rules },
-        MemberIds = { group.MemberIds.Select(id => id.ToString()) },
-    };
+        var contract = new Contract.Group
+        {
+            Id = group.Id.ToString(),
+            Name = group.Name,
+            IsDefault = group.IsDefault,
+            Rules = { group.Rules },
+            MemberIds = { group.MemberIds.Select(id => id.ToString()) },
+            Depth = group.Depth,
+        };
+
+        if (group.ParentGroupId is { } parentId)
+        {
+            contract.ParentGroupId = parentId.ToString();
+        }
+
+        return contract;
+    }
 
     private static Contract.CompanyProfile ToContract(this CompanyProfileDto profile)
     {

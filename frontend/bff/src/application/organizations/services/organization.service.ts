@@ -3,6 +3,10 @@ import type { AddGroupMemberCommand } from '../commands/add-group-member.command
 import type { AddMemberCommand } from '../commands/add-member.command.js';
 import type { ChangeMemberDeskCommand } from '../commands/change-member-desk.command.js';
 import type { CreateGroupCommand } from '../commands/create-group.command.js';
+import type { MoveGroupCommand } from '../commands/move-group.command.js';
+import type { SetGroupRulesCommand } from '../commands/set-group-rules.command.js';
+import type { SetMemberRulesCommand } from '../commands/set-member-rules.command.js';
+import type { TransferOwnershipCommand } from '../commands/transfer-ownership.command.js';
 import type { CreateOrganizationCommand } from '../commands/create-organization.command.js';
 import type { RemoveCommodityCommand } from '../commands/remove-commodity.command.js';
 import type { RemoveMemberCommand } from '../commands/remove-member.command.js';
@@ -84,12 +88,34 @@ export class OrganizationService {
     return this.listMembers({ context: command.context });
   }
 
+  /** Alçadas do membro: devolve a lista atualizada. */
+  async setMemberRules(command: SetMemberRulesCommand): Promise<MemberResponse[]> {
+    await this.gateway.setMemberRules(command);
+    return this.listMembers({ context: command.context });
+  }
+
+  /** Sem devolver a lista: quem transferiu pode ter perdido o acesso aos membros (o owner anterior vira user). */
+  async transferOwnership(command: TransferOwnershipCommand): Promise<void> {
+    await this.gateway.transferOwnership(command);
+  }
+
+  async setGroupRules(command: SetGroupRulesCommand): Promise<GroupResponse[]> {
+    await this.gateway.setGroupRules(command);
+    return this.listGroups({ context: command.context });
+  }
+
   async removeMember(command: RemoveMemberCommand): Promise<void> {
     await this.gateway.removeMember(command);
   }
 
   async createGroup(command: CreateGroupCommand): Promise<GroupResponse[]> {
     await this.gateway.createGroup(command);
+    return this.listGroups({ context: command.context });
+  }
+
+  /** Organograma: reposiciona o grupo e devolve a árvore atualizada. */
+  async moveGroup(command: MoveGroupCommand): Promise<GroupResponse[]> {
+    await this.gateway.moveGroup(command);
     return this.listGroups({ context: command.context });
   }
 

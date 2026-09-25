@@ -1,7 +1,8 @@
 using Fix.Application.Abstractions.Authorization;
 using Fix.Application.Abstractions.Exceptions;
-using Fix.Application.Abstractions.Messaging;
+using Fix.Application.Authorization;
 using Fix.Application.Common;
+using Fix.Application.Common.Interfaces.UseCases;
 using Fix.Application.Orders.Commands;
 using Fix.Application.Orders.Dtos;
 using Fix.Application.Orders.Mappers;
@@ -22,24 +23,15 @@ internal sealed class OrderService(
     IMandateRepository mandateRepository,
     ICounterpartyRepository counterpartyRepository,
     IRoleResolver roleResolver,
+    OrgChartApproval orgChart,
     TimeProvider timeProvider,
     IUnitOfWork unitOfWork)
-    : ICommandHandler<RegisterOrderCommand, OrderDto>,
-      ICommandHandler<UpdateOrderCommand, OrderDto>,
-      ICommandHandler<ApproveOrderCommand, OrderDto>,
-      ICommandHandler<RejectOrderCommand, OrderDto>,
-      ICommandHandler<DeleteOrderCommand, Unit>,
-      ICommandHandler<ConfirmOrderCommand, OrderDto>,
-      ICommandHandler<MarkOrderDivergentCommand, OrderDto>,
-      ICommandHandler<RefuseOrderConfirmationCommand, OrderDto>,
-      ICommandHandler<ResolveOrderDivergenceCommand, OrderDto>,
-      IQueryHandler<GetOrderQuery, OrderDto>,
-      IQueryHandler<ListOrdersQuery, PagedList<OrderDto>>
+    : IOrderService
 {
     // ---------- Commands ----------
 
     /// <summary>Registra a boleta no mandato ativo; com alçada (self_approve) já nasce aprovada e consome saldo.</summary>
-    public async Task<OrderDto> HandleAsync(RegisterOrderCommand command, CancellationToken cancellationToken)
+    public async Task<OrderDto> RegisterOrderAsync(RegisterOrderCommand command, CancellationToken cancellationToken)
     {
         var mandate = await GetMandateAsync(command.MandateId, cancellationToken);
         var counterparty = await GetCounterpartyAsync(command.CounterpartyId, cancellationToken);
@@ -60,7 +52,7 @@ internal sealed class OrderService(
         return order.ToDto(mandate.Title.Value, counterparty.Name.Value, timeProvider.Today());
     }
 
-    public async Task<OrderDto> HandleAsync(UpdateOrderCommand command, CancellationToken cancellationToken)
+    public async Task<OrderDto> UpdateOrderAsync(UpdateOrderCommand command, CancellationToken cancellationToken)
     {
         var order = await GetAsync(command.Id, cancellationToken);
         var mandate = await GetMandateAsync(order.MandateId, cancellationToken);
@@ -74,9 +66,11 @@ internal sealed class OrderService(
     }
 
     /// <summary>Na aprovação o saldo é conferido de novo, pois outras boletas podem ter consumido o mandato.</summary>
-    public async Task<OrderDto> HandleAsync(ApproveOrderCommand command, CancellationToken cancellationToken)
+    public async Task<OrderDto> ApproveOrderAsync(ApproveOrderCommand command, CancellationToken cancellationToken)
     {
         var order = await GetAsync(command.Id, cancellationToken);
+        await orgChart.EnsureCanDecideAsync(command.OrganizationId, command.UserId, order.RequestedBy, cancellationToken);
+
         var mandate = await GetMandateAsync(order.MandateId, cancellationToken);
         var authorized = mandate.Quantity;
         if (authorized is not null)
@@ -94,10 +88,15 @@ internal sealed class OrderService(
         return await ToDtoAsync(order, mandate, cancellationToken);
     }
 
-    public Task<OrderDto> HandleAsync(RejectOrderCommand command, CancellationToken cancellationToken) =>
-        ChangeAsync(command.Id, o => o.Reject(command.UserId, timeProvider.GetUtcNow(), command.Reason), cancellationToken);
+    public async Task<OrderDto> RejectOrderAsync(RejectOrderCommand command, CancellationToken cancellationToken)
+    {
+        var order = await GetAsync(command.Id, cancellationToken);
+        await orgChart.EnsureCanDecideAsync(command.OrganizationId, command.UserId, order.RequestedBy, cancellationToken);
 
-    public async Task<Unit> HandleAsync(DeleteOrderCommand command, CancellationToken cancellationToken)
+        return await ChangeAsync(command.Id, o => o.Reject(command.UserId, timeProvider.GetUtcNow(), command.Reason), cancellationToken);
+    }
+
+    public async Task DeleteOrderAsync(DeleteOrderCommand command, CancellationToken cancellationToken)
     {
         var order = await GetAsync(command.Id, cancellationToken);
         if (!order.CanBeDeleted)
@@ -107,30 +106,28 @@ internal sealed class OrderService(
 
         orderRepository.Remove(order);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Unit.Value;
     }
 
     // ---------- Commands: confirmation ----------
 
-    public Task<OrderDto> HandleAsync(ConfirmOrderCommand command, CancellationToken cancellationToken) =>
+    public Task<OrderDto> ConfirmOrderAsync(ConfirmOrderCommand command, CancellationToken cancellationToken) =>
         ChangeAsync(command.Id, o => o.Confirm(command.ReceivedOn), cancellationToken);
 
-    public Task<OrderDto> HandleAsync(MarkOrderDivergentCommand command, CancellationToken cancellationToken) =>
+    public Task<OrderDto> MarkOrderDivergentAsync(MarkOrderDivergentCommand command, CancellationToken cancellationToken) =>
         ChangeAsync(command.Id, o => o.MarkDivergent(command.Description), cancellationToken);
 
-    public Task<OrderDto> HandleAsync(RefuseOrderConfirmationCommand command, CancellationToken cancellationToken) =>
+    public Task<OrderDto> RefuseOrderConfirmationAsync(RefuseOrderConfirmationCommand command, CancellationToken cancellationToken) =>
         ChangeAsync(command.Id, o => o.RefuseConfirmation(command.Reason), cancellationToken);
 
-    public Task<OrderDto> HandleAsync(ResolveOrderDivergenceCommand command, CancellationToken cancellationToken) =>
+    public Task<OrderDto> ResolveOrderDivergenceAsync(ResolveOrderDivergenceCommand command, CancellationToken cancellationToken) =>
         ChangeAsync(command.Id, o => o.ResolveDivergence(timeProvider.Today()), cancellationToken);
 
     // ---------- Queries ----------
 
-    public async Task<OrderDto> HandleAsync(GetOrderQuery query, CancellationToken cancellationToken) =>
+    public async Task<OrderDto> GetOrderAsync(GetOrderQuery query, CancellationToken cancellationToken) =>
         await ToDtoAsync(await GetAsync(query.Id, cancellationToken), null, cancellationToken);
 
-    public async Task<PagedList<OrderDto>> HandleAsync(ListOrdersQuery query, CancellationToken cancellationToken)
+    public async Task<PagedList<OrderDto>> ListOrdersAsync(ListOrdersQuery query, CancellationToken cancellationToken)
     {
         var (page, pageSize) = Paging.Normalize(query.Page, query.PageSize);
         var orders = await orderRepository.ListAsync(

@@ -50,7 +50,7 @@ export const toComplianceDto = (c: ContractCompliance): ComplianceDto => ({
 const toTermsDto = (t: ContractMandateTerms): MandateTermsDto => ({
   title: t.title,
   criteria: nullable(t.criteria),
-  commodity: commodityEnum.fromContractRequired(t.commodity),
+  commodity: commodityEnum.fromContract(t.commodity),
   tenor: nullable(t.tenor),
   quantity: nullableNumber(t.quantity),
   quantityUnit: measurementUnitEnum.fromContractRequired(t.quantityUnit),

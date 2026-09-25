@@ -16,6 +16,11 @@ const schema = z.object({
   SESSION_SECRET: z.string().min(32).default(DEV_SECRET),
   SESSION_TTL: z.string().default('8h'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  ELASTICSEARCH_URL: z.url().default('http://localhost:9200'),
+  ELASTICSEARCH_INDEX_PREFIX: z.string().regex(/^[a-z0-9-]+$/).default('fix'),
+  REDIS_URL: z.string().default('redis://localhost:6379'),
+  /** TTL do cache de visualização (linhas lidas do core para pesquisas e widgets). */
+  VIZ_CACHE_TTL_SECONDS: z.coerce.number().int().min(0).default(30),
 });
 
 export type Env = z.infer<typeof schema>;

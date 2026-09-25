@@ -18,6 +18,10 @@ internal sealed class OrganizationGroupConfiguration : IEntityTypeConfiguration<
             .IsRequired();
         builder.HasIndex(g => new { g.OrganizationId, g.Name }).IsUnique();
 
+        // Organograma: auto-relacionamento; excluir um grupo com subgrupos é barrado pelo banco.
+        builder.HasOne<OrganizationGroup>().WithMany().HasForeignKey(g => g.ParentGroupId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(g => g.ParentGroupId);
+
         builder.HasMany(g => g.Members).WithOne().HasForeignKey(gm => gm.GroupId).OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -8,6 +8,10 @@ using Fix.Domain.AggregateRoots.Roles;
 namespace Fix.Application.Policies.Queries;
 
 [RequireRole(RoleCodes.ViewPolicy)]
-public sealed record ListPoliciesQuery(Guid UserId, Guid OrganizationId, int Page, int PageSize)
+public sealed record ListPoliciesQuery(
+    Guid UserId,
+    Guid OrganizationId,
+    int Page,
+    int PageSize)
     : IQuery<PagedList<PolicySummaryDto>>, IOrganizationRequest;
 

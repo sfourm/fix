@@ -5,10 +5,16 @@ package fix.v1;
 option csharp_namespace = "Fix.Contracts.V1";
 
 import "google/protobuf/empty.proto";
+import "common.proto";
 
-// Rules: conjuntos de roles atribuídos a membros e grupos (ex.: administrador, gestor, operador).
+// Rules: conjuntos de roles. owner e user são do sistema (fixas); as alçadas personalizadas são criadas e editadas
+// pela organização. As rules internas da FIX (super_administrador, administrador) só existem na organização FIX.
+// Exige context.user_id e context.organization_id.
 service RuleService {
-  rpc ListRules(google.protobuf.Empty) returns (ListRulesResponse);
+  rpc ListRules(ListRulesRequest) returns (ListRulesResponse);
+  rpc CreateRule(CreateRuleRequest) returns (Rule);
+  rpc UpdateRule(UpdateRuleRequest) returns (Rule);
+  rpc DeleteRule(RuleIdRequest) returns (google.protobuf.Empty);
 }
 
 message Rule {
@@ -16,8 +22,33 @@ message Rule {
   string code = 2;
   string name = 3;
   repeated string roles = 4; // códigos das roles concedidas
+  bool is_system = 5;        // owner/user/internas: não editáveis
+  int32 usages = 6;          // membros e grupos que usam a rule na organização
+}
+
+message ListRulesRequest {
+  RequestContext context = 1;
 }
 
 message ListRulesResponse {
   repeated Rule rules = 1;
+}
+
+message CreateRuleRequest {
+  RequestContext context = 1;
+  string name = 2;
+  repeated string role_codes = 3;
+}
+
+message UpdateRuleRequest {
+  RequestContext context = 1;
+  string id = 2;
+  string name = 3;
+  repeated string role_codes = 4;
+}
+
+// Excluir a alçada a retira de todos os membros e grupos que a tinham.
+message RuleIdRequest {
+  RequestContext context = 1;
+  string id = 2;
 }

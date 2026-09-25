@@ -25,6 +25,7 @@ defineProps<{ type: MandateType; fieldError?: (name: string) => string | undefin
       <div class="field">
         <label for="terms-commodity">Commodity</label>
         <select id="terms-commodity" v-model="terms.commodity" class="input">
+          <option v-if="type !== 'Pricing'" :value="null">— (não se aplica)</option>
           <option v-for="c in COMMODITIES" :key="c" :value="c">{{ commodityLabel[c] }}</option>
         </select>
       </div>
