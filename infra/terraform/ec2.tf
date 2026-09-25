@@ -32,8 +32,8 @@ resource "aws_instance" "node" {
     http_put_response_hop_limit = 1          # pods não alcançam as credenciais do nó
   }
 
-  user_data_replace_on_change = true
-  # Só a base do cluster; domínios, valores e segredos vêm do SSM no deploy (mudá-los não recria a instância).
+  # Só a base do cluster (k3s, ingress-nginx, cert-manager, Flux). A aplicação vem do repositório pelo Flux e os
+  # segredos do SSM; nada disso recria a instância.
   user_data = templatefile("${path.module}/templates/user-data.sh.tftpl", {
     aws_region                  = var.aws_region
     ssm_prefix                  = local.ssm_prefix
@@ -43,7 +43,12 @@ resource "aws_instance" "node" {
     helm_version                = var.helm_version
     ingress_nginx_chart_version = var.ingress_nginx_chart_version
     cert_manager_chart_version  = var.cert_manager_chart_version
-    deploy_script = templatefile("${path.module}/templates/fix-deploy.sh.tftpl", {
+    flux_chart_version          = var.flux_chart_version
+    environment                 = var.environment
+    github_repository_url       = "https://github.com/${var.github_repository}"
+    github_branch               = var.github_branch
+    gitops_path                 = var.gitops_path
+    sync_script = templatefile("${path.module}/templates/fix-sync.sh.tftpl", {
       aws_region = var.aws_region
       ssm_prefix = local.ssm_prefix
     })
@@ -52,6 +57,9 @@ resource "aws_instance" "node" {
   tags = { Name = local.name }
 
   lifecycle {
+    # Mudanças no bootstrap não recriam a instância existente (perderia os dados do cluster).
+    # Para aplicá-las: terraform apply -replace=aws_instance.node
+    ignore_changes = [user_data, ami]
     precondition {
       condition     = var.ghcr_pull_token == "" || var.ghcr_username != ""
       error_message = "ghcr_pull_token exige ghcr_username."
@@ -66,7 +74,6 @@ resource "aws_instance" "node" {
     aws_ssm_parameter.admin_password,
     aws_ssm_parameter.grafana_admin_password,
     aws_ssm_parameter.letsencrypt_email,
-    aws_ssm_parameter.helm_values,
     aws_ssm_parameter.ghcr_username,
     aws_ssm_parameter.ghcr_token,
     aws_ssm_parameter.kubeconfig,

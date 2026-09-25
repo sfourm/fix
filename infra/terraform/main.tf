@@ -175,19 +175,6 @@ resource "aws_ssm_parameter" "letsencrypt_email" {
   value = var.letsencrypt_email != "" ? var.letsencrypt_email : "-"
 }
 
-# Valores do chart para este ambiente: o fix-deploy lê a cada deploy (mudar aqui não recria a instância).
-resource "aws_ssm_parameter" "helm_values" {
-  name = "${local.ssm_prefix}/helm-values"
-  type = "String"
-  value = templatefile("${path.module}/templates/values.yaml.tftpl", {
-    image_registry       = local.image_registry
-    host                 = local.host
-    grafana_host         = local.grafana_host
-    enable_tls           = var.enable_tls
-    enable_observability = var.enable_observability
-    use_ghcr_auth        = local.use_ghcr_auth
-  })
-}
 
 resource "aws_ssm_parameter" "ghcr_username" {
   count = local.use_ghcr_auth ? 1 : 0

@@ -6,11 +6,11 @@ Ambiente de **apresentação**: um único nó EC2 com **k3s**, dimensionado para
 ## Visão geral
 
 ```
-GitHub (push main) ──CI──▶ imagens + chart ──▶ GHCR (ghcr.io/<owner>/<repo>/…)
-        │
-        └─OIDC──▶ role AWS (só ssm:SendCommand nesta EC2) ──SSM Run Command──▶ fix-deploy ──helm upgrade──▶ k3s
-                                                                                                         │
-Internet ──80/443──▶ EC2 (EIP) ─▶ ServiceLB do k3s ─▶ ingress-nginx ─▶ /api → BFF · / → web ◀────────────┘
+GitHub (push main) ──CI──▶ imagens + chart ──▶ GHCR (ghcr.io/<owner>/<repo>/…) ◀──┐
+                                                                                   │ lê chart novo (OCI)
+Repositório: infra/gitops/<ambiente> (HelmRelease) ◀── lê a cada 1 min ── Flux (no k3s) ──helm upgrade──▶ app
+                                                                                   │
+Internet ──80/443──▶ EC2 (EIP) ─▶ ServiceLB do k3s ─▶ ingress-nginx ─▶ /api → BFF · / → web ◀──────┘
                                                                         BFF → core-service (gRPC) → PostgreSQL
                                                                         BFF → Redis · Elasticsearch
 Seu kubectl ──6443 (admin_cidrs) ou túnel SSM──▶ API do k3s (contexto fix-<ambiente>)
@@ -20,9 +20,10 @@ Seu kubectl ──6443 (admin_cidrs) ou túnel SSM──▶ API do k3s (contexto
 | --- | --- | --- |
 | Dockerfiles | `backend/core-service/Dockerfile`, `frontend/bff/Dockerfile`, `frontend/web/Dockerfile` | Build a partir da **raiz** do repositório (`.dockerignore` na raiz); core e BFF precisam de `protos/` |
 | Chart Helm | `infra/helm/fix` | Plataforma inteira: 3 apps + PostgreSQL, Redis, Elasticsearch + Ingress |
-| Terraform | `infra/terraform` | VPC mínima, EC2 + EIP, SG, IAM (nó e GitHub OIDC), segredos no SSM, bootstrap (user-data) |
+| Terraform | `infra/terraform` | VPC mínima, EC2 + EIP, SG, IAM do nó, segredos no SSM, bootstrap (user-data) |
+| GitOps | `infra/gitops/<ambiente>` | O que o cluster aplica: HelmRelease (versão do chart + values do ambiente); `infra/gitops/flux` liga o Flux ao repositório |
 | Scripts | `infra/scripts/kubeconfig.{ps1,sh}` | Colocam o cluster no `kubectl` local |
-| Pipelines | `.github/workflows/ci.yml`, `deploy.yml` | CI em PR; na `main`: CI → imagens → chart → deploy |
+| Pipelines | `.github/workflows/ci.yml`, `deploy.yml` | CI em PR; na `main`: CI → imagens → chart (o Flux aplica; o GitHub não acessa a AWS nem o cluster) |
 
 ## Imagens
 
@@ -38,10 +39,9 @@ Seu kubectl ──6443 (admin_cidrs) ou túnel SSM──▶ API do k3s (contexto
 - Imagem: `<image.registry>/<componente>:<tag>`, com `tag` = `image.tag` ou, por padrão, a **appVersion** do chart. O pipeline
   publica o chart com `appVersion=<sha>`: cada versão do chart instala as imagens geradas no mesmo build (Packages do GitHub).
 - Segredos vêm do Secret `fix-secrets` (`postgres-password`, `session-secret`, `admin-email`, `admin-password`,
-  `grafana-admin-password`), recriado pelo `fix-deploy` a cada deploy a partir do SSM. `secrets.create=true` só para testes locais.
-- Valores do ambiente (domínios, TLS, observabilidade, registry, pull secret) ficam no SSM em `/fix/<ambiente>/helm-values`
-  (gerado pelo Terraform); o `fix-deploy` grava em `/etc/fix/values.yaml` e aplica. Mudar domínio/TLS/observabilidade no
-  Terraform **não recria a instância**: `terraform apply` + novo deploy.
+  `grafana-admin-password`), criado no nó pelo `fix-sync` a partir do SSM. `secrets.create=true` só para testes locais.
+- Valores do ambiente (domínios, TLS, observabilidade, registry) ficam **no repositório**, em
+  `infra/gitops/<ambiente>/fix.yaml` (HelmRelease). Push na `main` = o Flux aplica.
 - Ingress `nginx`: `/api` → BFF, `/` → web. O core-service **não** é exposto. Com `ingress.tls.enabled`, o cert-manager emite
   o certificado (ClusterIssuer `letsencrypt`).
 - core-service roda as migrations no startup (`Database__MigrateOnStartup=true`) e cria o super administrador (`Seed__*`);
@@ -59,23 +59,31 @@ Seu kubectl ──6443 (admin_cidrs) ou túnel SSM──▶ API do k3s (contexto
 
 Amazon Linux 2023 (SSM Agent e AWS CLI nativos) → swap 2 GB e `vm.max_map_count` → k3s (`--disable traefik`,
 `--tls-san <EIP>`) → Helm → ingress-nginx (Service LoadBalancer publicado nas portas 80/443 pelo ServiceLB do k3s) →
-cert-manager → `/usr/local/bin/fix-deploy --sync-only` (valores, segredos e ClusterIssuer `letsencrypt` a partir do SSM) →
+cert-manager → `/usr/local/bin/fix-sync` (Secret `fix-secrets` e ClusterIssuer `letsencrypt` a partir do SSM) →
+Flux (chart `fluxcd-community/flux2`, só source/kustomize/helm controllers, ~75 MB) + GitRepository/Kustomization apontando
+para `infra/gitops/<ambiente>` →
 kubeconfig publicado no SSM (`/fix/<ambiente>/kubeconfig`, contexto `fix-<ambiente>`, server = EIP) → marca
 `/var/lib/fix/bootstrap-done`. Log em `/var/log/fix-bootstrap.log`.
 
-Versões fixadas em variáveis: k3s `v1.33.5+k3s1`, Helm `v3.19.1`, ingress-nginx `4.15.1`, cert-manager `v1.21.2`.
+Versões fixadas em variáveis: k3s `v1.33.5+k3s1`, Helm `v3.19.1`, ingress-nginx `4.15.1`, cert-manager `v1.21.2`,
+Flux chart `2.19.1` (Flux v2.9.5). O Terraform ignora mudanças de `user_data`/AMI na instância existente: mudanças no
+bootstrap só valem com `terraform apply -replace=aws_instance.node` (recria o cluster e perde os dados).
 
-## Deploy (`fix-deploy`)
+## Deploy (GitOps com Flux)
 
-`fix-deploy <oci://ghcr.io/...> <x.y.z> <tag>` valida as entradas (regex), renova o login no GHCR se houver token,
-sincroniza a configuração do SSM (valores, Secret `fix-secrets`, ClusterIssuer com o e-mail do Let's Encrypt) e roda
-`helm upgrade --install fix … --values /etc/fix/values.yaml --set image.tag=<tag> --wait --atomic`.
-O workflow acompanha o `ssm get-command-invocation` e publica a saída no resumo do job.
+- O pipeline publica o chart `0.1.<run_number>` com `appVersion=<sha>` depois das imagens do mesmo build.
+- `infra/gitops/<ambiente>/fix.yaml`: `HelmRepository` (OCI no GHCR) + `HelmRelease` `fix` com `version: ">=0.1.0"` (sempre o
+  chart mais novo; troque por versão exata para fixar/voltar) e os values do ambiente. O Flux verifica a cada 1–2 min.
+- Upgrade com remediação: duas falhas seguidas voltam para a versão anterior.
+- O Flux assume o release `fix` existente sem reinstalar (dados preservados) — testado.
+- `fix-sync` (no nó) é a única ponte com a AWS: Secret `fix-secrets`, ClusterIssuer e, opcional, credencial do GHCR.
 
 ## Regras
 
 - Segredo nunca vai para o repositório, o chart ou o workflow: fica no SSM (e no estado do Terraform — proteja o estado).
-- O GitHub não recebe chaves da AWS: só OIDC, com role restrita à instância e ao documento `AWS-RunShellScript`.
+- O GitHub não tem acesso à AWS nem ao cluster: o cluster puxa do repositório e do GHCR (modelo pull do GitOps).
+- Configuração do ambiente é código: altere `infra/gitops/<ambiente>` por commit, não com `helm upgrade`/`kubectl edit` no
+  cluster (o Flux desfaz mudanças manuais no próximo ciclo).
 - Mudou porta, variável de ambiente ou dependência de uma app? Atualize juntos Dockerfile, chart (`templates/*.yaml`,
   `values.yaml`) e, se necessário, o bootstrap.
 - Nova app/serviço: Dockerfile com contexto na raiz + entrada na matriz `images` do `deploy.yml` + templates no chart.

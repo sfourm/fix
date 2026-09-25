@@ -17,21 +17,21 @@ variable "environment" {
 }
 
 variable "github_repository" {
-  description = "Repositório do GitHub (owner/nome) que publica as imagens no GHCR e faz o deploy."
+  description = "Repositório do GitHub (owner/nome): publica imagens e chart no GHCR e é lido pelo Flux (GitOps)."
   type        = string
   default     = "sfourm/fix"
 }
 
-variable "github_deploy_refs" {
-  description = "Refs do GitHub que podem assumir a role de deploy (claim sub do OIDC)."
-  type        = list(string)
-  default     = ["ref:refs/heads/main"]
+variable "github_branch" {
+  description = "Branch que o Flux acompanha."
+  type        = string
+  default     = "main"
 }
 
-variable "create_github_oidc_provider" {
-  description = "Cria o OIDC provider do GitHub na conta. Use false se ele já existir (só pode haver um por conta)."
-  type        = bool
-  default     = true
+variable "gitops_path" {
+  description = "Pasta do repositório com os manifests do ambiente (HelmRelease com chart e values)."
+  type        = string
+  default     = "infra/gitops/presentation"
 }
 
 # ---------- Máquina ----------
@@ -92,6 +92,12 @@ variable "ingress_nginx_chart_version" {
   default     = "4.15.1"
 }
 
+variable "flux_chart_version" {
+  description = "Versão do chart fluxcd-community/flux2 (Flux v2.9.x)."
+  type        = string
+  default     = "2.19.1"
+}
+
 variable "cert_manager_chart_version" {
   description = "Versão do chart cert-manager (usado só com enable_tls)."
   type        = string
@@ -101,25 +107,25 @@ variable "cert_manager_chart_version" {
 # ---------- Aplicação ----------
 
 variable "domain_name" {
-  description = "Host público da aplicação. Vazio = fix.<ip-elástico>.nip.io (DNS mágico, sem configurar domínio)."
+  description = "Host público do portal (outputs e DNS). O cluster usa o valor de infra/gitops/<ambiente>/fix.yaml: mantenha iguais."
   type        = string
   default     = ""
 }
 
 variable "grafana_domain_name" {
-  description = "Host público do Grafana (a UI do Jaeger fica em <host>/jaeger). Vazio = grafana.<domain_name>."
+  description = "Host público do Grafana (outputs e DNS). Vazio = grafana.<domain_name>. O cluster usa infra/gitops/<ambiente>/fix.yaml."
   type        = string
   default     = ""
 }
 
 variable "enable_observability" {
-  description = "Roda no cluster a stack de observabilidade (OTel Collector, Prometheus, Jaeger e Grafana) e liga a telemetria das apps."
+  description = "Há Grafana no ambiente (outputs e DNS). Quem liga a stack no cluster é observability.enabled em infra/gitops/<ambiente>/fix.yaml."
   type        = bool
   default     = true
 }
 
 variable "enable_tls" {
-  description = "HTTPS com certificados do Let's Encrypt (cert-manager) para o portal e o Grafana. Exige DNS apontando para o IP elástico."
+  description = "URLs em https nos outputs. Quem liga o HTTPS no cluster é ingress.tls.enabled em infra/gitops/<ambiente>/fix.yaml."
   type        = bool
   default     = false
 }

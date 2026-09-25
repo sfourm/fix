@@ -1,75 +1,91 @@
 # Infraestrutura: cluster k3s na AWS (apresentação)
 
-Um nó EC2 pequeno com **k3s** (Kubernetes), **Helm**, **ingress-nginx** e **cert-manager** (HTTPS com Let's Encrypt), com a
-stack de observabilidade (OTel Collector, Prometheus, Jaeger e **Grafana**) rodando no próprio cluster.
+Um nó EC2 pequeno com **k3s** (Kubernetes), **Helm**, **ingress-nginx**, **cert-manager** (HTTPS com Let's Encrypt) e
+**Flux** (GitOps), com a stack de observabilidade (OTel Collector, Prometheus, Jaeger e **Grafana**) no próprio cluster.
 A plataforma Fix (core-service, BFF, web, PostgreSQL, Redis, Elasticsearch) é instalada pelo chart `helm/fix`.
-Imagens e chart ficam no **GHCR**; o **GitHub Actions** publica e faz o deploy. O cluster fica disponível no seu `kubectl`.
+
+**Como uma mudança chega ao cluster (GitOps):** o GitHub Actions testa e publica imagens e chart no **GHCR** (Packages do
+GitHub); o **Flux**, rodando no cluster, lê este repositório (`gitops/presentation`) e o GHCR e aplica sozinho. O GitHub
+não tem credenciais da AWS e não acessa o cluster. O cluster também fica disponível no seu `kubectl`.
 
 ```
 infra/
-├── terraform/   # VPC, EC2 + EIP, security group, IAM (nó e GitHub OIDC), segredos no SSM, bootstrap do k3s
-├── helm/fix/    # chart da plataforma
-└── scripts/     # kubeconfig.ps1 / kubeconfig.sh: adicionam o cluster ao kubectl local
+├── terraform/          # VPC, EC2 + EIP, security group, IAM do nó, segredos no SSM, bootstrap (k3s, ingress, cert-manager, Flux)
+├── helm/fix/           # chart da plataforma
+├── gitops/
+│   ├── presentation/   # o que o cluster aplica: HelmRelease (versão do chart + values do ambiente)
+│   └── flux/           # liga o Flux do cluster a este repositório (aplicado uma vez)
+└── scripts/            # kubeconfig.ps1 / kubeconfig.sh: adicionam o cluster ao kubectl local
 ```
+
+## Onde fica cada configuração
+
+| O quê | Onde | Muda como |
+| --- | --- | --- |
+| Código, imagens, chart | Repositório → GHCR (pipeline) | Push na `main` |
+| Versão do chart e values do ambiente (domínios, HTTPS, observabilidade) | `infra/gitops/presentation/fix.yaml` | Push na `main` (o Flux aplica em ~2 min) |
+| Dashboards do Grafana | `observability/grafana/dashboards/*.json` | Push na `main` (entram no próximo chart) |
+| Segredos (PostgreSQL, sessão, super admin, Grafana, e-mail do Let's Encrypt) | SSM Parameter Store (Terraform) | `terraform apply` + `sudo fix-sync` no nó |
+| Máquina, rede, DNS de saída (outputs) | `infra/terraform` | `terraform apply` |
 
 ## Custo e dimensionamento
 
-`t3.medium` (2 vCPU, 4 GB) + 30 GB gp3 + IP elástico ≈ **US$ 35/mês** ligado (us-east-1). Medido em teste: o cluster inteiro
-usa ~2,1 GB (Elasticsearch ~0,8 GB, core ~0,2 GB, ingress ~0,1 GB, BFF ~0,07 GB). O nó tem 2 GB de swap de margem.
-Depois da apresentação: `terraform destroy`.
+`t3.medium` (2 vCPU, 4 GB) + 30 GB gp3 + IP elástico ≈ **US$ 35/mês** ligado (us-east-1). Com tudo ligado (aplicação,
+observabilidade, cert-manager e Flux) o cluster usa ~2,9 GB; o nó tem 2 GB de swap de margem. Se aparecer pod reiniciando por
+memória (`OOMKilled`), suba para `t3.large`. Depois da apresentação: `terraform destroy`.
 
 ## Pré-requisitos
 
-- Terraform ≥ 1.6, AWS CLI v2 com credenciais de uma identidade que possa criar VPC, EC2, IAM (roles, OIDC provider) e
-  parâmetros do SSM. Teste com `aws sts get-caller-identity`.
+- Terraform ≥ 1.6, AWS CLI v2 com credenciais de uma identidade que possa criar VPC, EC2, IAM e parâmetros do SSM.
+  Teste com `aws sts get-caller-identity`.
 - `kubectl` e, para o modo túnel, o [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
-- Repositório no GitHub com Actions habilitado (`gh` CLI ajuda a configurar as variáveis).
+- Repositório e pacotes do GHCR **públicos** (padrão quando o repositório é público). Se forem privados, veja
+  "Pacotes privados" abaixo.
 
 ## 1. Criar a infraestrutura
 
 ```bash
 cd infra/terraform
-cp terraform.tfvars.example terraform.tfvars   # ajuste: admin_cidrs (seu IP/32), enable_tls, etc.
+cp terraform.tfvars.example terraform.tfvars   # ajuste: admin_cidrs (seu IP/32), domínios, e-mail do Let's Encrypt
 terraform init
 terraform apply
+terraform output dns_records                   # cadastre os registros A no DNS do domínio
 ```
 
-O bootstrap do nó leva ~5 minutos (k3s, Helm, ingress-nginx, segredos). Acompanhe:
+O bootstrap do nó leva ~5 minutos (k3s, Helm, ingress-nginx, cert-manager, Flux, segredos). Em seguida o Flux instala a
+aplicação a partir do repositório. Acompanhe:
 
 ```bash
 aws ssm start-session --target $(terraform output -raw instance_id)
 sudo tail -f /var/log/fix-bootstrap.log     # termina com "bootstrap concluído"
 ```
 
-## 2. Configurar o GitHub
+## 2. Deploy (GitOps)
+
+Não há nada para configurar no GitHub. Todo push na `main` roda `.github/workflows/deploy.yml`:
+
+1. **CI**: testes do core, BFF e web; lint do chart; validate do Terraform.
+2. **Imagens** `ghcr.io/<owner>/<repo>/{core-service,bff,web}:<sha>` (e `:latest`).
+3. **Chart** `oci://ghcr.io/<owner>/<repo>/charts/fix`, versão `0.1.<run_number>`, com `appVersion = <sha>` (as imagens do
+   mesmo build).
+
+O Flux verifica o GHCR e o repositório a cada 1–2 minutos: encontrou chart novo ou mudança em `infra/gitops/presentation`,
+faz `helm upgrade`. Se o upgrade falhar duas vezes, volta para a versão anterior.
 
 ```bash
-terraform output -raw github_variables | bash     # cria AWS_REGION, AWS_DEPLOY_ROLE_ARN e EC2_INSTANCE_ID no repositório
+kubectl -n fix get helmrelease fix                      # versão aplicada e status
+kubectl -n flux-system get gitrepository,kustomization  # leitura do repositório
+kubectl -n fix describe helmrelease fix                 # detalhes em caso de erro
 ```
 
-Sem `gh`: Settings › Secrets and variables › Actions › Variables, com os valores de `terraform output`.
+Para fixar uma versão (ou voltar para uma anterior), troque `version: ">=0.1.0"` por uma versão exata em
+`infra/gitops/presentation/fix.yaml` e faça push.
 
-Nenhuma chave da AWS vai para o GitHub: o workflow assume a role `fix-<ambiente>-github-deploy` por **OIDC**, e essa role só
-pode executar comandos SSM **nesta** instância.
+**Pacotes privados**: se os pacotes do GHCR forem privados, informe `ghcr_username` e `ghcr_pull_token` (PAT com
+`read:packages`) no `terraform.tfvars`, rode `terraform apply` e `sudo fix-sync` no nó; use `image.pullSecrets: [{name: ghcr-pull}]`
+nos values e adicione `secretRef` no `HelmRepository`.
 
-## 3. Deploy
-
-Todo push na `main` roda `.github/workflows/deploy.yml`:
-
-1. **CI** (testes do core, BFF e web; lint do chart; validate do Terraform).
-2. **Imagens** `ghcr.io/<owner>/<repo>/{core-service,bff,web}:<sha>` (e `:latest`).
-3. **Chart** `oci://ghcr.io/<owner>/<repo>/charts/fix`, versão `0.1.<run_number>`.
-4. **Deploy**: `aws ssm send-command` executa no nó `fix-deploy <chart> <versão> <sha>` →
-   `helm upgrade --install --atomic` (falhou, volta para a versão anterior).
-
-Também pode ser disparado manualmente (Actions › Deploy › Run workflow).
-
-**Visibilidade dos pacotes**: o GHCR cria os pacotes como privados. Escolha uma opção:
-- torne `core-service`, `bff`, `web` e `charts/fix` **públicos** (GitHub › Packages › Package settings), ou
-- informe `ghcr_username` e `ghcr_pull_token` (PAT com `read:packages`) no `terraform.tfvars` e rode `terraform apply`:
-  o nó faz login no GHCR e o chart passa a usar o secret `ghcr-pull`.
-
-## 4. kubectl
+## 3. kubectl
 
 ```powershell
 # Windows (PowerShell) — acesso direto (seu IP em admin_cidrs)
@@ -83,33 +99,31 @@ Também pode ser disparado manualmente (Actions › Deploy › Run workflow).
 ```
 
 O script lê o kubeconfig que o nó publicou no SSM (`/fix/<ambiente>/kubeconfig`, SecureString), mescla em `~/.kube/config`
-(com backup `.bak`) e seleciona o contexto **`fix-presentation`**:
-
-```bash
-kubectl get nodes
-kubectl -n fix get pods
-kubectl -n fix logs deploy/fix-core-service
-kubectl config use-context fix-presentation   # voltar ao cluster depois de trocar de contexto
-```
+(com backup `.bak`) e seleciona o contexto **`fix-presentation`**. Se a instância for recriada, rode o script de novo (o
+certificado do cluster muda).
 
 No modo túnel, mantenha aberto em outro terminal:
 `aws ssm start-session --target <id> --document-name AWS-StartPortForwardingSession --parameters portNumber=6443,localPortNumber=16443`.
 
-## 5. Acessar a aplicação
+## 4. Acessar a aplicação
 
-- Portal: `terraform output app_url` (ex.: `https://fix.webpassos.com.br`; sem `domain_name`, `http://fix.<ip>.nip.io`).
+- Portal: `terraform output app_url` (ex.: `https://fix.webpassos.com.br`).
 - Grafana: `terraform output grafana_url` (ex.: `https://grafana.fix.webpassos.com.br`), usuário `admin`, senha em
   `terraform output -raw grafana_admin_password`. UI do Jaeger em `<grafana_url>/jaeger` (exige login no Grafana).
-- DNS: `terraform output dns_records` lista os registros A (todos para o IP elástico). O certificado do Let's Encrypt sai
-  sozinho depois que o DNS aponta para o IP.
+- DNS: `terraform output dns_records`. O certificado do Let's Encrypt sai sozinho depois que o DNS aponta para o IP.
 - Super administrador FIX: `terraform output super_admin_email` e `terraform output -raw super_admin_password`.
+
+Os domínios aparecem em dois lugares: `infra/gitops/presentation/fix.yaml` (o que o cluster usa) e `terraform.tfvars`
+(outputs e DNS). Mantenha iguais.
 
 ## Segurança
 
 - Abertas ao mundo: só 80/443 (ingress-nginx). 6443 (API do Kubernetes) e 22 apenas para `admin_cidrs`; vazio = fechadas.
-- Segredos (PostgreSQL, sessão do BFF, senha do super admin, token do GHCR, kubeconfig) ficam no SSM Parameter Store
-  (SecureString); o nó lê com a própria role e cria o Secret `fix-secrets`. **O estado do Terraform também os contém**:
-  para uso em equipe, use backend S3 criptografado (bloco comentado em `versions.tf`).
+- O GitHub não tem acesso à AWS nem ao cluster: o cluster **puxa** do repositório e do GHCR (públicos, só leitura).
+- Segredos ficam no SSM Parameter Store (SecureString); o nó lê com a própria role (`fix-sync`) e cria o Secret
+  `fix-secrets`. Nada sensível fica no repositório. **O estado do Terraform contém os segredos**: para uso em equipe, use
+  backend S3 criptografado (bloco comentado em `versions.tf`).
+- Push na `main` vai para produção: proteja a branch (Settings › Branches) se mais gente tiver acesso de escrita.
 - IMDSv2 obrigatório com hop limit 1 (pods não alcançam as credenciais do nó); disco criptografado.
 - O core-service não é exposto: só o BFF fala com ele, dentro do cluster.
 
@@ -117,16 +131,11 @@ No modo túnel, mantenha aberto em outro terminal:
 
 | Ação | Como |
 | --- | --- |
-| Ver o que rodou no deploy | Resumo do job no GitHub Actions, ou `helm -n fix history fix` |
-| Voltar uma versão | `helm -n fix rollback fix <revisão>` |
-| Trocar domínio, TLS ou observabilidade | Ajuste o `terraform.tfvars`, `terraform apply` (só atualiza o SSM) e rode um novo deploy |
-| Trocar um segredo | Altere o parâmetro no SSM e rode um novo deploy (o `fix-deploy` recria o Secret) + `kubectl -n fix rollout restart deploy`. As senhas do PostgreSQL e do admin do Grafana só valem na criação dos volumes |
-| Editar dashboards do Grafana | Edite `observability/grafana/dashboards/*.json` e faça push: o pipeline copia para o chart e o deploy atualiza o Grafana |
-| Recriar o nó do zero | `terraform apply -replace=aws_instance.node` (os dados dos volumes do k3s são perdidos) e rodar o deploy de novo |
+| Ver o que está aplicado | `kubectl -n fix get helmrelease fix` e `helm -n fix history fix` |
+| Voltar uma versão | Fixe a versão anterior em `infra/gitops/presentation/fix.yaml` e faça push |
+| Trocar domínio, HTTPS ou observabilidade | Edite `infra/gitops/presentation/fix.yaml` (e `terraform.tfvars` para os outputs) e faça push |
+| Trocar um segredo | Altere o parâmetro no SSM (ou `terraform apply`) e rode `sudo fix-sync` no nó. As senhas do PostgreSQL e do admin do Grafana só valem na criação dos volumes |
+| Editar dashboards do Grafana | Edite `observability/grafana/dashboards/*.json` e faça push |
+| Forçar o Flux a ler agora | `kubectl -n flux-system annotate gitrepository fix reconcile.fluxcd.io/requestedAt="$(date +%s)" --overwrite` |
+| Mudar o bootstrap do nó | Edite o template; só vale para instância nova: `terraform apply -replace=aws_instance.node` (perde os dados do cluster) |
 | Desligar tudo | `terraform destroy` |
-
-## Testado localmente
-
-O chart e o fluxo de deploy foram validados em um k3s local (container `rancher/k3s`) configurado como o nó:
-sem Traefik, ingress-nginx pelo Helm, chart publicado/baixado via OCI, `fix-deploy` (validação de entradas) e
-`kubeconfig.ps1`/`.sh` (mesclagem de contexto). O `terraform validate` e o `actionlint` passam; o `apply` na AWS não foi executado.

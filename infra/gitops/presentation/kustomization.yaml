@@ -1,0 +1,5 @@
+# Tudo o que o Flux aplica no ambiente de apresentação (Kustomization fix-presentation → ./infra/gitops/presentation).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - fix.yaml

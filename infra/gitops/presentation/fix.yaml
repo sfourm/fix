@@ -1,0 +1,53 @@
+# Plataforma Fix no ambiente de apresentação, aplicada pelo Flux (GitOps).
+# O cluster lê este arquivo direto do repositório: mudou aqui e fez push na main, o Flux aplica em ~2 minutos.
+#
+# - Chart: a versão mais nova publicada pelo GitHub Actions no GHCR (a appVersion do chart = SHA do build,
+#   então as imagens vêm junto). Para fixar uma versão, troque o range por uma versão exata (ex.: "0.1.3").
+# - Values: configuração do ambiente (domínios, HTTPS, observabilidade). Segredos NÃO ficam aqui: o Secret
+#   fix-secrets é criado no nó a partir do SSM Parameter Store da AWS.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: fix-charts
+  namespace: fix
+spec:
+  type: oci
+  interval: 2m
+  url: oci://ghcr.io/sfourm/fix/charts
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: fix
+  namespace: fix
+spec:
+  releaseName: fix
+  interval: 2m
+  timeout: 12m
+  chart:
+    spec:
+      chart: fix
+      version: ">=0.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: fix-charts
+      interval: 2m
+  install:
+    remediation:
+      retries: 2
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 2
+      remediateLastFailure: true # falhou de novo: volta para a versão anterior
+  values:
+    image:
+      registry: ghcr.io/sfourm/fix
+    ingress:
+      host: fix.webpassos.com.br
+      tls:
+        enabled: true
+    observability:
+      enabled: true
+      grafana:
+        host: grafana.fix.webpassos.com.br

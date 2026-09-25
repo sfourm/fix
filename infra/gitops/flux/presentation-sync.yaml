@@ -1,0 +1,32 @@
+# Liga o Flux do cluster a este repositório. Aplicado uma vez no cluster (pelo bootstrap do nó ou com kubectl apply);
+# daqui em diante o cluster lê ./infra/gitops/presentation da branch main sozinho.
+# Repositório público: não precisa de credencial.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: fix
+  namespace: flux-system
+spec:
+  url: https://github.com/sfourm/fix
+  ref:
+    branch: main
+  interval: 1m
+  # Só baixa o que o cluster precisa.
+  ignore: |
+    /*
+    !/infra/gitops/
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: fix-presentation
+  namespace: flux-system
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: fix
+  path: ./infra/gitops/presentation
+  interval: 5m
+  prune: true
+  wait: false
+  timeout: 5m

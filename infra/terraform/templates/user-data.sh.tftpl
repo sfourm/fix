@@ -1,9 +1,9 @@
 #!/bin/bash
 # Bootstrap do nó k3s da plataforma Fix (Amazon Linux 2023). Gerado pelo Terraform (templates/user-data.sh.tftpl).
-# Instala a base do cluster: k3s (sem Traefik), Helm, ingress-nginx e cert-manager; publica o kubeconfig para o kubectl
-# local e instala o script de deploy (fix-deploy) chamado pelo GitHub Actions.
-# Domínios, valores do chart e segredos NÃO ficam aqui: o fix-deploy lê do SSM Parameter Store a cada deploy, então
-# mudá-los no Terraform não recria a instância.
+# Instala a base do cluster: k3s (sem Traefik), Helm, ingress-nginx, cert-manager e Flux (GitOps); sincroniza os
+# segredos do SSM Parameter Store (fix-sync) e publica o kubeconfig para o kubectl local.
+# A aplicação é instalada pelo Flux, que lê o repositório (${gitops_path}); este script não instala o chart.
+# Mudanças aqui só valem para instâncias novas: o Terraform ignora user_data na instância existente.
 set -euo pipefail
 exec > >(tee -a /var/log/fix-bootstrap.log) 2>&1
 echo "==> bootstrap iniciado em $(date -Is)"
@@ -49,6 +49,7 @@ if ! command -v helm >/dev/null; then
 fi
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx >/dev/null
 helm repo add jetstack https://charts.jetstack.io >/dev/null
+helm repo add fluxcd-community https://fluxcd-community.github.io/helm-charts >/dev/null
 helm repo update >/dev/null
 
 # ---------- ingress-nginx (Service LoadBalancer → ServiceLB do k3s publica 80/443 no nó) ----------
@@ -62,7 +63,7 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --set controller.resources.limits.memory=256Mi \
   --wait --timeout 10m
 
-# ---------- cert-manager (certificados do Let's Encrypt; o ClusterIssuer é criado pelo fix-deploy) ----------
+# ---------- cert-manager (certificados do Let's Encrypt; o ClusterIssuer é criado pelo fix-sync) ----------
 helm upgrade --install cert-manager jetstack/cert-manager \
   --version "${cert_manager_chart_version}" \
   --namespace cert-manager --create-namespace \
@@ -70,12 +71,53 @@ helm upgrade --install cert-manager jetstack/cert-manager \
   --set resources.requests.cpu=10m --set resources.requests.memory=32Mi \
   --wait --timeout 10m
 
-# ---------- Script de deploy + configuração inicial (valores, segredos, emissor de certificados) ----------
-cat > /usr/local/bin/fix-deploy <<'EOF'
-${deploy_script}
+# ---------- Segredos e emissor de certificados a partir do SSM (fix-sync) ----------
+cat > /usr/local/bin/fix-sync <<'EOF'
+${sync_script}
 EOF
-chmod 0755 /usr/local/bin/fix-deploy
-/usr/local/bin/fix-deploy --sync-only
+chmod 0755 /usr/local/bin/fix-sync
+/usr/local/bin/fix-sync
+
+# ---------- Flux (GitOps): o cluster lê o repositório e instala a aplicação ----------
+# Só os controladores usados (source, kustomize, helm): ~75 MB.
+helm upgrade --install flux fluxcd-community/flux2 \
+  --version "${flux_chart_version}" \
+  --namespace flux-system --create-namespace \
+  --set imageAutomationController.create=false \
+  --set imageReflectionController.create=false \
+  --set notificationController.create=false \
+  --set policies.create=false \
+  --wait --timeout 10m
+cat <<'EOF' | kubectl apply -f -
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: fix
+  namespace: flux-system
+spec:
+  url: ${github_repository_url}
+  ref:
+    branch: ${github_branch}
+  interval: 1m
+  ignore: |
+    /*
+    !/infra/gitops/
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: fix-${environment}
+  namespace: flux-system
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: fix
+  path: ./${gitops_path}
+  interval: 5m
+  prune: true
+  wait: false
+  timeout: 5m
+EOF
 
 # ---------- kubeconfig para o kubectl local (SSM SecureString, lido por infra/scripts/kubeconfig.*) ----------
 sed -e "s#https://127.0.0.1:6443#https://$PUBLIC_IP:6443#" \
@@ -86,4 +128,4 @@ aws ssm put-parameter --name "$SSM_PREFIX/kubeconfig" --type SecureString --tier
 rm -f /root/kubeconfig-external.yaml
 
 mkdir -p /var/lib/fix && date -Is > /var/lib/fix/bootstrap-done
-echo "==> bootstrap concluído em $(date -Is). Aguardando o deploy pelo GitHub Actions."
+echo "==> bootstrap concluído em $(date -Is). O Flux instala a aplicação a partir do repositório."

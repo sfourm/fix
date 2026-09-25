@@ -25,13 +25,8 @@ output "public_ip" {
 }
 
 output "instance_id" {
-  description = "ID da EC2 (variável EC2_INSTANCE_ID no GitHub)."
+  description = "ID da EC2 (SSM Session Manager e túnel do kubectl)."
   value       = aws_instance.node.id
-}
-
-output "github_deploy_role_arn" {
-  description = "Role assumida pelo GitHub Actions via OIDC (variável AWS_DEPLOY_ROLE_ARN no GitHub)."
-  value       = aws_iam_role.github_deploy.arn
 }
 
 output "chart_ref" {
@@ -49,13 +44,9 @@ output "super_admin_password" {
   sensitive   = true
 }
 
-output "github_variables" {
-  description = "Comandos para configurar as variáveis do repositório no GitHub (gh CLI)."
-  value       = <<-EOT
-    gh variable set AWS_REGION --repo ${var.github_repository} --body ${var.aws_region}
-    gh variable set AWS_DEPLOY_ROLE_ARN --repo ${var.github_repository} --body ${aws_iam_role.github_deploy.arn}
-    gh variable set EC2_INSTANCE_ID --repo ${var.github_repository} --body ${aws_instance.node.id}
-  EOT
+output "gitops" {
+  description = "De onde o cluster lê a aplicação (Flux)."
+  value       = "https://github.com/${var.github_repository}/tree/${var.github_branch}/${var.gitops_path}"
 }
 
 output "ssm_session_command" {

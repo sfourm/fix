@@ -1,0 +1,56 @@
+#!/bin/bash
+# Sincroniza no cluster o que vem da AWS (SSM Parameter Store, ${ssm_prefix}/*) e não pode ficar no repositório:
+# Secret fix-secrets (senhas), ClusterIssuer do Let's Encrypt (e-mail) e, opcional, login no GHCR (pacotes privados).
+# O deploy da aplicação é feito pelo Flux a partir do repositório (infra/gitops); este script não instala o chart.
+# Roda no bootstrap do nó; rode de novo (sudo fix-sync) depois de trocar um segredo no SSM.
+set -euo pipefail
+export PATH="/usr/local/bin:$PATH"
+export KUBECONFIG="$${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
+export HOME="$${HOME:-/root}"
+export AWS_DEFAULT_REGION="${aws_region}"
+SSM_PREFIX="${ssm_prefix}"
+
+# Parâmetro do SSM ("" se não existir).
+param() { aws ssm get-parameter --name "$SSM_PREFIX/$1" --with-decryption --query Parameter.Value --output text 2>/dev/null || true; }
+
+kubectl create namespace fix --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
+# Segredos da aplicação (SSM → Secret fix-secrets)
+kubectl -n fix create secret generic fix-secrets \
+  --from-literal=postgres-password="$(param postgres-password)" \
+  --from-literal=session-secret="$(param session-secret)" \
+  --from-literal=admin-email="$(param admin-email)" \
+  --from-literal=admin-password="$(param admin-password)" \
+  --from-literal=grafana-admin-password="$(param grafana-admin-password)" \
+  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
+# Emissor Let's Encrypt (HTTP-01 pelo ingress-nginx); e-mail opcional ("-" = sem e-mail)
+EMAIL="$(param letsencrypt-email)"
+{
+  echo "apiVersion: cert-manager.io/v1"
+  echo "kind: ClusterIssuer"
+  echo "metadata: { name: letsencrypt }"
+  echo "spec:"
+  echo "  acme:"
+  echo "    server: https://acme-v02.api.letsencrypt.org/directory"
+  if [ -n "$EMAIL" ] && [ "$EMAIL" != "-" ]; then echo "    email: \"$EMAIL\""; fi
+  echo "    privateKeySecretRef: { name: letsencrypt-account-key }"
+  echo "    solvers:"
+  echo "      - http01: { ingress: { ingressClassName: nginx } }"
+} | kubectl apply -f - >/dev/null
+
+# GHCR privado (opcional): pull secret das imagens e credencial do Flux para o chart OCI
+TOKEN="$(param ghcr-token)"
+if [ -n "$TOKEN" ]; then
+  USER_NAME="$(param ghcr-username)"
+  for ns in fix; do
+    kubectl -n "$ns" create secret docker-registry ghcr-pull \
+      --docker-server=ghcr.io --docker-username="$USER_NAME" --docker-password="$TOKEN" \
+      --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  done
+  echo "credencial do GHCR atualizada (secret fix/ghcr-pull)"
+fi
+
+# Se os segredos mudaram, reinicia quem os lê (no primeiro boot a aplicação ainda não existe).
+kubectl -n fix rollout restart deploy 2>/dev/null || true
+echo "sincronizado a partir do SSM ($SSM_PREFIX)"
