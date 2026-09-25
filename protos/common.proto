@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package fix.v1;
+
+option csharp_namespace = "Fix.Contracts.V1";
+
+// Convenções dos contratos:
+// · valores decimais (preço, quantidade, %) trafegam como double;
+// · datas trafegam como string ISO "yyyy-MM-dd";
+// · enums espelham os valores numéricos do domínio (0 = não informado).
+
+// Quem executa a ação e em qual organização. O BFF autentica o usuário e preenche este contexto;
+// o core confia no user_id recebido e valida as roles consultando a base.
+message RequestContext {
+  string user_id = 1;
+  string organization_id = 2; // vazio nos RPCs que não dependem de organização
+}
+
+message PageRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+}
+
+message PageInfo {
+  int32 page = 1;
+  int32 page_size = 2;
+  int32 total_count = 3;
+}
+
+enum Commodity {
+  COMMODITY_UNSPECIFIED = 0;
+  COMMODITY_RAW_SUGAR = 1;         // Açúcar VHP · NY11
+  COMMODITY_WHITE_SUGAR = 2;       // Açúcar branco · Londres nº5
+  COMMODITY_HYDRATED_ETHANOL = 3;  // Etanol hidratado · B3/ESALQ
+  COMMODITY_ANHYDROUS_ETHANOL = 4; // Etanol anidro · B3/ESALQ
+  COMMODITY_CORN = 5;              // Milho · CBOT
+  COMMODITY_SOYBEAN = 6;           // Soja · CBOT
+}
+
+enum MeasurementUnit {
+  MEASUREMENT_UNIT_UNSPECIFIED = 0;
+  MEASUREMENT_UNIT_LOTS = 1;
+  MEASUREMENT_UNIT_TONNES = 2;
+  MEASUREMENT_UNIT_BAGS = 3;         // sacas de 60 kg
+  MEASUREMENT_UNIT_CUBIC_METERS = 4;
+  MEASUREMENT_UNIT_POUNDS = 5;
+  MEASUREMENT_UNIT_USD = 6;          // nocional em US$
+}

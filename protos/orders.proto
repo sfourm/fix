@@ -1,0 +1,138 @@
+syntax = "proto3";
+
+package fix.v1;
+
+option csharp_namespace = "Fix.Contracts.V1";
+
+import "google/protobuf/empty.proto";
+import "common.proto";
+
+// Boletas de hedge (orders). Exige context.user_id e context.organization_id.
+// Toda boleta consome um mandato ATIVO; contraparte precisa estar homologada.
+// Com self_approve nasce APPROVED (consome saldo); senão PENDING_APPROVAL.
+// O confirmation (middle office) só se aplica a boletas aprovadas.
+service OrderService {
+  rpc RegisterOrder(RegisterOrderRequest) returns (Order);
+  rpc UpdateOrder(UpdateOrderRequest) returns (Order);
+  rpc ApproveOrder(OrderDecisionRequest) returns (Order);
+  rpc RejectOrder(OrderDecisionRequest) returns (Order);
+  rpc DeleteOrder(OrderIdRequest) returns (google.protobuf.Empty);
+  rpc ConfirmOrder(ConfirmOrderRequest) returns (Order);
+  rpc MarkOrderDivergent(OrderDecisionRequest) returns (Order);
+  rpc RefuseOrderConfirmation(OrderDecisionRequest) returns (Order);
+  rpc ResolveOrderDivergence(OrderIdRequest) returns (Order);
+  rpc GetOrder(OrderIdRequest) returns (Order);
+  rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
+}
+
+enum OrderType {
+  ORDER_TYPE_UNSPECIFIED = 0;
+  ORDER_TYPE_FUTURES = 1; // fixação via futuro em bolsa
+  ORDER_TYPE_OPTION = 2;  // opção vanilla
+  ORDER_TYPE_NDF = 3;     // NDF / termo de moeda
+}
+
+enum TradeDirection {
+  TRADE_DIRECTION_UNSPECIFIED = 0;
+  TRADE_DIRECTION_BUY = 1;
+  TRADE_DIRECTION_SELL = 2;
+}
+
+enum OptionKind {
+  OPTION_KIND_UNSPECIFIED = 0;
+  OPTION_KIND_CALL = 1;
+  OPTION_KIND_PUT = 2;
+}
+
+enum ApprovalStatus {
+  APPROVAL_STATUS_UNSPECIFIED = 0;
+  APPROVAL_STATUS_PENDING_APPROVAL = 1;
+  APPROVAL_STATUS_APPROVED = 2;
+  APPROVAL_STATUS_REJECTED = 3;
+}
+
+enum ConfirmationStatus {
+  CONFIRMATION_STATUS_UNSPECIFIED = 0;
+  CONFIRMATION_STATUS_PENDING = 1;
+  CONFIRMATION_STATUS_CONFIRMED = 2;
+  CONFIRMATION_STATUS_DIVERGENT = 3;
+  CONFIRMATION_STATUS_REFUSED = 4;
+}
+
+message OrderTerms {
+  OrderType type = 1;
+  TradeDirection direction = 2;
+  string tenor = 3;                // vencimento: N26, fev/27
+  optional double lots = 4;        // futuros e opções
+  optional double notional_usd = 5; // NDF
+  double price = 6;                // preço (futuro), taxa (NDF) ou strike (opção)
+  optional string price_unit = 7;
+  OptionKind option_kind = 8;
+  optional double premium = 9;
+  string trade_date = 10;
+  optional string notes = 11;
+}
+
+message Order {
+  string id = 1;
+  string mandate_id = 2;
+  string mandate_title = 3;
+  string counterparty_id = 4;
+  string counterparty_name = 5;
+  Commodity commodity = 6;
+  OrderTerms terms = 7;
+  ApprovalStatus approval = 8;
+  string requested_by = 9;
+  optional string decided_by = 10;
+  optional string decided_at = 11;
+  optional string decision_note = 12;
+  ConfirmationStatus confirmation = 13;
+  optional string confirmed_on = 14;
+  optional string confirmation_note = 15;
+  bool confirmation_overdue = 16;
+}
+
+message RegisterOrderRequest {
+  RequestContext context = 1;
+  string mandate_id = 2;
+  string counterparty_id = 3;
+  OrderTerms terms = 4;
+}
+
+message UpdateOrderRequest {
+  RequestContext context = 1;
+  string id = 2;
+  string counterparty_id = 3;
+  OrderTerms terms = 4;
+}
+
+// Aprovar: note opcional · rejeitar/divergência/recusa: note obrigatória.
+message OrderDecisionRequest {
+  RequestContext context = 1;
+  string id = 2;
+  optional string note = 3;
+}
+
+message ConfirmOrderRequest {
+  RequestContext context = 1;
+  string id = 2;
+  string received_on = 3;
+}
+
+message OrderIdRequest {
+  RequestContext context = 1;
+  string id = 2;
+}
+
+message ListOrdersRequest {
+  RequestContext context = 1;
+  optional string mandate_id = 2;
+  ApprovalStatus approval = 3;         // UNSPECIFIED = todos
+  ConfirmationStatus confirmation = 4; // UNSPECIFIED = todos
+  PageRequest page = 5;
+}
+
+message ListOrdersResponse {
+  repeated Order orders = 1;
+  PageInfo page = 2;
+}

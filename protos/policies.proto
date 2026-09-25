@@ -1,0 +1,258 @@
+syntax = "proto3";
+
+package fix.v1;
+
+option csharp_namespace = "Fix.Contracts.V1";
+
+import "google/protobuf/empty.proto";
+import "common.proto";
+
+// Política de riscos (política-mãe) versionada. Exige context.user_id e context.organization_id.
+// Ciclo: DRAFT → (Submit) UNDER_APPROVAL → (Approve + ata) ACTIVE → (OpenVersion) UNDER_APPROVAL ...
+// Só rascunho/em aprovação aceitam edição de parâmetros, eixos, bandas e instrumentos.
+service PolicyService {
+  rpc CreatePolicy(CreatePolicyRequest) returns (Policy);
+  rpc UpdatePolicy(UpdatePolicyRequest) returns (Policy);
+  rpc UpdatePolicyLimits(UpdatePolicyLimitsRequest) returns (Policy);
+  rpc SubmitPolicy(PolicyIdRequest) returns (Policy);
+  rpc ApprovePolicy(ApprovePolicyRequest) returns (Policy);
+  rpc OpenPolicyVersion(OpenPolicyVersionRequest) returns (Policy);
+  rpc DeletePolicy(PolicyIdRequest) returns (google.protobuf.Empty);
+  rpc GetPolicy(PolicyIdRequest) returns (Policy);
+  rpc ListPolicies(ListPoliciesRequest) returns (ListPoliciesResponse);
+
+  rpc AddPolicyAxis(AddPolicyAxisRequest) returns (Policy);
+  rpc UpdatePolicyAxis(UpdatePolicyAxisRequest) returns (Policy);
+  rpc RemovePolicyAxis(PolicyChildRequest) returns (Policy);
+  rpc AddCoverageBand(AddCoverageBandRequest) returns (Policy);
+  rpc UpdateCoverageBand(UpdateCoverageBandRequest) returns (Policy);
+  rpc RemoveCoverageBand(PolicyChildRequest) returns (Policy);
+  rpc AddPolicyInstrument(AddPolicyInstrumentRequest) returns (Policy);
+  rpc UpdatePolicyInstrument(UpdatePolicyInstrumentRequest) returns (Policy);
+  rpc RemovePolicyInstrument(PolicyChildRequest) returns (Policy);
+}
+
+enum PolicyStatus {
+  POLICY_STATUS_UNSPECIFIED = 0;
+  POLICY_STATUS_DRAFT = 1;
+  POLICY_STATUS_UNDER_APPROVAL = 2;
+  POLICY_STATUS_ACTIVE = 3;
+  POLICY_STATUS_SUPERSEDED = 4;
+}
+
+// Fator de risco coberto por um eixo.
+enum RiskFactor {
+  RISK_FACTOR_UNSPECIFIED = 0;
+  RISK_FACTOR_PHYSICAL = 1;
+  RISK_FACTOR_PRICE = 2;
+  RISK_FACTOR_CURRENCY = 3;
+  RISK_FACTOR_FREIGHT = 4;
+}
+
+enum InstrumentPermission {
+  INSTRUMENT_PERMISSION_UNSPECIFIED = 0;
+  INSTRUMENT_PERMISSION_ALLOWED = 1;
+  INSTRUMENT_PERMISSION_CAPPED = 2;
+  INSTRUMENT_PERMISSION_FORBIDDEN = 3;
+}
+
+message PolicyLimits {
+  int32 hedge_horizon_years = 1;
+  double absolute_ceiling_pct = 2;
+  double fx_fixed_min_pct = 3;
+  double fx_fixed_max_pct = 4;
+  double fx_unfixed_max_pct = 5;
+  double margin_cash_max_pct = 6;
+  double physical_concentration_max_pct = 7;
+  double financial_concentration_max_pct = 8;
+  int32 logistics_deadline_months = 9;
+  double freight_ceiling_pct = 10;
+  double covered_call_max_pct = 11;
+}
+
+message PolicyAxis {
+  string id = 1;
+  string code = 2;
+  string title = 3;
+  RiskFactor factor = 4;
+  optional string statement = 5;
+  optional string limit_description = 6;
+  optional string approver = 7;
+  repeated string restrictions = 8;
+}
+
+message CoverageBand {
+  string id = 1;
+  string horizon = 2;
+  string crop = 3; // AA/AA
+  double min_pct = 4;
+  double max_pct = 5;
+  optional string note = 6;
+}
+
+message PolicyInstrument {
+  string id = 1;
+  string name = 2;
+  InstrumentPermission permission = 3;
+  optional string condition = 4;
+}
+
+message PolicyVersion {
+  string version = 1;
+  PolicyStatus status = 2;
+  string date = 3;
+  optional string note = 4;
+}
+
+message Policy {
+  string id = 1;
+  string code = 2;
+  string title = 3;
+  string version = 4;
+  optional string description = 5;
+  PolicyStatus status = 6;
+  string valid_from = 7;
+  optional string valid_to = 8;
+  optional string approval_record = 9;
+  optional string approved_on = 10;
+  PolicyLimits limits = 11;
+  repeated PolicyAxis axes = 12;
+  repeated CoverageBand bands = 13;
+  repeated PolicyInstrument instruments = 14;
+  repeated PolicyVersion versions = 15;
+}
+
+message PolicySummary {
+  string id = 1;
+  string code = 2;
+  string title = 3;
+  string version = 4;
+  PolicyStatus status = 5;
+  string valid_from = 6;
+  optional string valid_to = 7;
+  int32 axes_count = 8;
+}
+
+message CreatePolicyRequest {
+  RequestContext context = 1;
+  string code = 2;
+  string title = 3;
+  string version = 4;
+  optional string description = 5;
+  string valid_from = 6;
+  optional string valid_to = 7;
+  bool use_template = 8; // inicia com os eixos, instrumentos e bandas do modelo FIX
+}
+
+message UpdatePolicyRequest {
+  RequestContext context = 1;
+  string id = 2;
+  string code = 3;
+  string title = 4;
+  optional string description = 5;
+  string valid_from = 6;
+  optional string valid_to = 7;
+}
+
+message UpdatePolicyLimitsRequest {
+  RequestContext context = 1;
+  string id = 2;
+  PolicyLimits limits = 3;
+}
+
+message PolicyIdRequest {
+  RequestContext context = 1;
+  string id = 2;
+}
+
+message ApprovePolicyRequest {
+  RequestContext context = 1;
+  string id = 2;
+  string approval_record = 3; // nº/data da ata do Conselho
+}
+
+message OpenPolicyVersionRequest {
+  RequestContext context = 1;
+  string id = 2;
+  string version = 3;
+  optional string reason = 4;
+}
+
+message ListPoliciesRequest {
+  RequestContext context = 1;
+  PageRequest page = 2;
+}
+
+message ListPoliciesResponse {
+  repeated PolicySummary policies = 1;
+  PageInfo page = 2;
+}
+
+message PolicyChildRequest {
+  RequestContext context = 1;
+  string policy_id = 2;
+  string child_id = 3;
+}
+
+message PolicyAxisInput {
+  string code = 1;
+  string title = 2;
+  RiskFactor factor = 3;
+  optional string statement = 4;
+  optional string limit_description = 5;
+  optional string approver = 6;
+  repeated string restrictions = 7;
+}
+
+message AddPolicyAxisRequest {
+  RequestContext context = 1;
+  string policy_id = 2;
+  PolicyAxisInput axis = 3;
+}
+
+message UpdatePolicyAxisRequest {
+  RequestContext context = 1;
+  string policy_id = 2;
+  string axis_id = 3;
+  PolicyAxisInput axis = 4;
+}
+
+message CoverageBandInput {
+  string horizon = 1;
+  string crop = 2;
+  double min_pct = 3;
+  double max_pct = 4;
+  optional string note = 5;
+}
+
+message AddCoverageBandRequest {
+  RequestContext context = 1;
+  string policy_id = 2;
+  CoverageBandInput band = 3;
+}
+
+message UpdateCoverageBandRequest {
+  RequestContext context = 1;
+  string policy_id = 2;
+  string band_id = 3;
+  CoverageBandInput band = 4;
+}
+
+message PolicyInstrumentInput {
+  string name = 1;
+  InstrumentPermission permission = 2;
+  optional string condition = 3;
+}
+
+message AddPolicyInstrumentRequest {
+  RequestContext context = 1;
+  string policy_id = 2;
+  PolicyInstrumentInput instrument = 3;
+}
+
+message UpdatePolicyInstrumentRequest {
+  RequestContext context = 1;
+  string policy_id = 2;
+  string instrument_id = 3;
+  PolicyInstrumentInput instrument = 4;
+}

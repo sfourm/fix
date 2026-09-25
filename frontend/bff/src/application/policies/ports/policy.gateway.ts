@@ -1,0 +1,42 @@
+import type { Page } from '../../../cross-cutting/paging/page.js';
+import type { AddCoverageBandCommand } from '../commands/add-coverage-band.command.js';
+import type { AddPolicyAxisCommand } from '../commands/add-policy-axis.command.js';
+import type { AddPolicyInstrumentCommand } from '../commands/add-policy-instrument.command.js';
+import type { ApprovePolicyCommand } from '../commands/approve-policy.command.js';
+import type { CreatePolicyCommand } from '../commands/create-policy.command.js';
+import type { DeletePolicyCommand } from '../commands/delete-policy.command.js';
+import type { OpenPolicyVersionCommand } from '../commands/open-policy-version.command.js';
+import type { RemoveCoverageBandCommand } from '../commands/remove-coverage-band.command.js';
+import type { RemovePolicyAxisCommand } from '../commands/remove-policy-axis.command.js';
+import type { RemovePolicyInstrumentCommand } from '../commands/remove-policy-instrument.command.js';
+import type { SubmitPolicyCommand } from '../commands/submit-policy.command.js';
+import type { UpdateCoverageBandCommand } from '../commands/update-coverage-band.command.js';
+import type { UpdatePolicyAxisCommand } from '../commands/update-policy-axis.command.js';
+import type { UpdatePolicyInstrumentCommand } from '../commands/update-policy-instrument.command.js';
+import type { UpdatePolicyLimitsCommand } from '../commands/update-policy-limits.command.js';
+import type { UpdatePolicyCommand } from '../commands/update-policy.command.js';
+import type { PolicySummaryDto } from '../dtos/policy-summary.dto.js';
+import type { PolicyDto } from '../dtos/policy.dto.js';
+import type { GetPolicyQuery } from '../queries/get-policy.query.js';
+import type { ListPoliciesQuery } from '../queries/list-policies.query.js';
+
+export interface PolicyGateway {
+  create(command: CreatePolicyCommand): Promise<PolicyDto>;
+  update(command: UpdatePolicyCommand): Promise<PolicyDto>;
+  updateLimits(command: UpdatePolicyLimitsCommand): Promise<PolicyDto>;
+  submit(command: SubmitPolicyCommand): Promise<PolicyDto>;
+  approve(command: ApprovePolicyCommand): Promise<PolicyDto>;
+  openVersion(command: OpenPolicyVersionCommand): Promise<PolicyDto>;
+  delete(command: DeletePolicyCommand): Promise<void>;
+  addAxis(command: AddPolicyAxisCommand): Promise<PolicyDto>;
+  updateAxis(command: UpdatePolicyAxisCommand): Promise<PolicyDto>;
+  removeAxis(command: RemovePolicyAxisCommand): Promise<PolicyDto>;
+  addBand(command: AddCoverageBandCommand): Promise<PolicyDto>;
+  updateBand(command: UpdateCoverageBandCommand): Promise<PolicyDto>;
+  removeBand(command: RemoveCoverageBandCommand): Promise<PolicyDto>;
+  addInstrument(command: AddPolicyInstrumentCommand): Promise<PolicyDto>;
+  updateInstrument(command: UpdatePolicyInstrumentCommand): Promise<PolicyDto>;
+  removeInstrument(command: RemovePolicyInstrumentCommand): Promise<PolicyDto>;
+  get(query: GetPolicyQuery): Promise<PolicyDto>;
+  list(query: ListPoliciesQuery): Promise<Page<PolicySummaryDto>>;
+}

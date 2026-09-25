@@ -1,0 +1,11 @@
+import type { RiskFactor } from '../../../cross-cutting/enums/risk-factor.js';
+
+export interface PolicyAxisInput {
+  code: string;
+  title: string;
+  factor: RiskFactor;
+  statement: string | null;
+  limitDescription: string | null;
+  approver: string | null;
+  restrictions: string[];
+}

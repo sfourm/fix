@@ -1,0 +1,45 @@
+import type { AddCommodityCommand } from '../commands/add-commodity.command.js';
+import type { AddGroupMemberCommand } from '../commands/add-group-member.command.js';
+import type { AddMemberCommand } from '../commands/add-member.command.js';
+import type { ChangeMemberDeskCommand } from '../commands/change-member-desk.command.js';
+import type { CreateGroupCommand } from '../commands/create-group.command.js';
+import type { CreateOrganizationCommand } from '../commands/create-organization.command.js';
+import type { RemoveCommodityCommand } from '../commands/remove-commodity.command.js';
+import type { RemoveMemberCommand } from '../commands/remove-member.command.js';
+import type { UpdateBudgetCommand } from '../commands/update-budget.command.js';
+import type { UpdateCommodityCommand } from '../commands/update-commodity.command.js';
+import type { UpdateCompanyProfileCommand } from '../commands/update-company-profile.command.js';
+import type { UpdateFinancialsCommand } from '../commands/update-financials.command.js';
+import type { UpdateIndustrialProfileCommand } from '../commands/update-industrial-profile.command.js';
+import type { UpdateOrganizationCommand } from '../commands/update-organization.command.js';
+import type { GroupDto } from '../dtos/group.dto.js';
+import type { MemberDto } from '../dtos/member.dto.js';
+import type { OrganizationSetupDto } from '../dtos/organization-setup.dto.js';
+import type { OrganizationDto } from '../dtos/organization.dto.js';
+import type { GetOrganizationQuery } from '../queries/get-organization.query.js';
+import type { GetUserRolesQuery } from '../queries/get-user-roles.query.js';
+import type { ListGroupsQuery } from '../queries/list-groups.query.js';
+import type { ListMembersQuery } from '../queries/list-members.query.js';
+import type { ListUserOrganizationsQuery } from '../queries/list-user-organizations.query.js';
+
+export interface OrganizationGateway {
+  create(command: CreateOrganizationCommand): Promise<OrganizationDto>;
+  update(command: UpdateOrganizationCommand): Promise<OrganizationDto>;
+  updateProfile(command: UpdateCompanyProfileCommand): Promise<OrganizationSetupDto>;
+  updateIndustrial(command: UpdateIndustrialProfileCommand): Promise<OrganizationSetupDto>;
+  updateBudget(command: UpdateBudgetCommand): Promise<OrganizationSetupDto>;
+  updateFinancials(command: UpdateFinancialsCommand): Promise<OrganizationSetupDto>;
+  addCommodity(command: AddCommodityCommand): Promise<OrganizationSetupDto>;
+  updateCommodity(command: UpdateCommodityCommand): Promise<OrganizationSetupDto>;
+  removeCommodity(command: RemoveCommodityCommand): Promise<OrganizationSetupDto>;
+  addMember(command: AddMemberCommand): Promise<string>;
+  changeMemberDesk(command: ChangeMemberDeskCommand): Promise<void>;
+  removeMember(command: RemoveMemberCommand): Promise<void>;
+  createGroup(command: CreateGroupCommand): Promise<string>;
+  addGroupMember(command: AddGroupMemberCommand): Promise<void>;
+  listForUser(query: ListUserOrganizationsQuery): Promise<OrganizationDto[]>;
+  get(query: GetOrganizationQuery): Promise<OrganizationSetupDto>;
+  getUserRoles(query: GetUserRolesQuery): Promise<string[]>;
+  listMembers(query: ListMembersQuery): Promise<MemberDto[]>;
+  listGroups(query: ListGroupsQuery): Promise<GroupDto[]>;
+}

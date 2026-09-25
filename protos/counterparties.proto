@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package fix.v1;
+
+option csharp_namespace = "Fix.Contracts.V1";
+
+import "google/protobuf/empty.proto";
+import "common.proto";
+
+// Contrapartes homologadas da companhia. Exige context.user_id e context.organization_id.
+service CounterpartyService {
+  rpc CreateCounterparty(CreateCounterpartyRequest) returns (Counterparty);
+  rpc UpdateCounterparty(UpdateCounterpartyRequest) returns (Counterparty);
+  rpc SetCounterpartyHomologation(SetCounterpartyHomologationRequest) returns (Counterparty);
+  rpc DeleteCounterparty(DeleteCounterpartyRequest) returns (google.protobuf.Empty);
+  rpc GetCounterparty(GetCounterpartyRequest) returns (Counterparty);
+  rpc ListCounterparties(ListCounterpartiesRequest) returns (ListCounterpartiesResponse);
+}
+
+enum CounterpartyType {
+  COUNTERPARTY_TYPE_UNSPECIFIED = 0;
+  COUNTERPARTY_TYPE_TRADING = 1;
+  COUNTERPARTY_TYPE_BANK_TRADING = 2;
+  COUNTERPARTY_TYPE_OTC_COUNTERPARTY = 3;
+  COUNTERPARTY_TYPE_BROKER = 4;
+  COUNTERPARTY_TYPE_CARRIER = 5;
+  COUNTERPARTY_TYPE_PRODUCER = 6;
+}
+
+message Counterparty {
+  string id = 1;
+  string name = 2;
+  CounterpartyType type = 3;
+  optional string document = 4;
+  optional string address = 5;
+  optional string country = 6;
+  bool is_homologated = 7;
+  optional double notional_limit_usd = 8;
+  optional double mtm_limit_usd = 9;
+}
+
+message CounterpartyInput {
+  string name = 1;
+  CounterpartyType type = 2;
+  optional string document = 3;
+  optional string address = 4;
+  optional string country = 5;
+  optional double notional_limit_usd = 6;
+  optional double mtm_limit_usd = 7;
+}
+
+message CreateCounterpartyRequest {
+  RequestContext context = 1;
+  CounterpartyInput data = 2;
+}
+
+message UpdateCounterpartyRequest {
+  RequestContext context = 1;
+  string id = 2;
+  CounterpartyInput data = 3;
+}
+
+message SetCounterpartyHomologationRequest {
+  RequestContext context = 1;
+  string id = 2;
+  bool homologated = 3;
+}
+
+message DeleteCounterpartyRequest {
+  RequestContext context = 1;
+  string id = 2;
+}
+
+message GetCounterpartyRequest {
+  RequestContext context = 1;
+  string id = 2;
+}
+
+message ListCounterpartiesRequest {
+  RequestContext context = 1;
+  bool only_homologated = 2;
+}
+
+message ListCounterpartiesResponse {
+  repeated Counterparty counterparties = 1;
+}

@@ -1,0 +1,136 @@
+syntax = "proto3";
+
+package fix.v1;
+
+option csharp_namespace = "Fix.Contracts.V1";
+
+import "google/protobuf/empty.proto";
+import "common.proto";
+
+// Mandatos: autorizam volume dentro de um eixo da política. Exige context.user_id e context.organization_id.
+// Dentro da política + emissor com self_approve → ACTIVE; senão → PENDING_APPROVAL (fila de aprovação).
+// Mandato FORA da política só é aprovado por quem tem approve_exception.
+service MandateService {
+  rpc IssueMandate(IssueMandateRequest) returns (Mandate);
+  rpc UpdateMandate(UpdateMandateRequest) returns (Mandate);
+  rpc ApproveMandate(MandateDecisionRequest) returns (Mandate);
+  rpc RejectMandate(MandateDecisionRequest) returns (Mandate);
+  rpc CloseMandate(MandateDecisionRequest) returns (Mandate);
+  rpc DeleteMandate(MandateIdRequest) returns (google.protobuf.Empty);
+  rpc GetMandate(MandateIdRequest) returns (Mandate);
+  rpc ListMandates(ListMandatesRequest) returns (ListMandatesResponse);
+  rpc PreviewMandateCompliance(PreviewMandateComplianceRequest) returns (Compliance);
+}
+
+enum MandateType {
+  MANDATE_TYPE_UNSPECIFIED = 0;
+  MANDATE_TYPE_PRICING = 1;    // fixação · eixo de preço
+  MANDATE_TYPE_CURRENCY = 2;   // moeda · eixo de moeda
+  MANDATE_TYPE_COMMERCIAL = 3; // físico · eixo físico
+  MANDATE_TYPE_LOGISTICS = 4;  // frete · eixo de frete
+}
+
+enum MandateStatus {
+  MANDATE_STATUS_UNSPECIFIED = 0;
+  MANDATE_STATUS_PENDING_APPROVAL = 1;
+  MANDATE_STATUS_ACTIVE = 2;
+  MANDATE_STATUS_REJECTED = 3;
+  MANDATE_STATUS_CLOSED = 4;
+}
+
+enum ComplianceStatus {
+  COMPLIANCE_STATUS_UNSPECIFIED = 0;
+  COMPLIANCE_STATUS_WITHIN = 1;
+  COMPLIANCE_STATUS_OUTSIDE = 2;
+}
+
+message Compliance {
+  ComplianceStatus status = 1;
+  string reason = 2;
+}
+
+message PriceCriteria {
+  bool at_market = 1;
+  optional double target = 2;
+  optional double min = 3;
+  optional double max = 4;
+  optional string unit = 5; // ex.: c/lb, R$/t, R$/US$
+}
+
+message MandateTerms {
+  string title = 1;
+  optional string criteria = 2;
+  Commodity commodity = 3;
+  optional string tenor = 4; // tela/vencimento: N26, fev/27
+  optional double quantity = 5;
+  MeasurementUnit quantity_unit = 6;
+  PriceCriteria price = 7;
+  optional string window_start = 8;
+  optional string window_end = 9;
+}
+
+message Mandate {
+  string id = 1;
+  string policy_id = 2;
+  string policy_code = 3;
+  string policy_version = 4;
+  string axis_id = 5;
+  string axis_code = 6;
+  string axis_title = 7;
+  MandateType type = 8;
+  MandateTerms terms = 9;
+  double consumed = 10;          // consumido por boletas aprovadas (lotes ou US$)
+  optional double balance = 11;  // saldo; ausente = sem teto de volume
+  Compliance compliance = 12;
+  MandateStatus status = 13;
+  string issued_by = 14;
+  optional string decided_by = 15;
+  optional string decided_at = 16;
+  optional string decision_note = 17;
+}
+
+message IssueMandateRequest {
+  RequestContext context = 1;
+  string policy_id = 2;
+  string axis_id = 3;
+  MandateType type = 4;
+  MandateTerms terms = 5;
+}
+
+message UpdateMandateRequest {
+  RequestContext context = 1;
+  string id = 2;
+  MandateTerms terms = 3;
+}
+
+// Aprovar/encerrar: note opcional · rejeitar: note obrigatória (justificativa).
+message MandateDecisionRequest {
+  RequestContext context = 1;
+  string id = 2;
+  optional string note = 3;
+}
+
+message MandateIdRequest {
+  RequestContext context = 1;
+  string id = 2;
+}
+
+message ListMandatesRequest {
+  RequestContext context = 1;
+  optional string policy_id = 2;
+  MandateStatus status = 3; // UNSPECIFIED = todos
+  PageRequest page = 4;
+}
+
+message ListMandatesResponse {
+  repeated Mandate mandates = 1;
+  PageInfo page = 2;
+}
+
+message PreviewMandateComplianceRequest {
+  RequestContext context = 1;
+  string policy_id = 2;
+  string axis_id = 3;
+  MandateType type = 4;
+  MandateTerms terms = 5;
+}

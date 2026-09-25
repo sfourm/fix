@@ -1,0 +1,265 @@
+syntax = "proto3";
+
+package fix.v1;
+
+option csharp_namespace = "Fix.Contracts.V1";
+
+import "google/protobuf/empty.proto";
+import "common.proto";
+
+// CreateOrganization e ListUserOrganizations usam apenas context.user_id.
+// Os demais exigem context.user_id e context.organization_id.
+service OrganizationService {
+  rpc CreateOrganization(CreateOrganizationRequest) returns (Organization);
+  rpc ListUserOrganizations(ListUserOrganizationsRequest) returns (ListOrganizationsResponse);
+
+  // Setup da companhia
+  rpc GetOrganization(GetOrganizationRequest) returns (OrganizationSetup);
+  rpc UpdateOrganization(UpdateOrganizationRequest) returns (Organization);
+  rpc UpdateCompanyProfile(UpdateCompanyProfileRequest) returns (OrganizationSetup);
+  rpc UpdateIndustrialProfile(UpdateIndustrialProfileRequest) returns (OrganizationSetup);
+  rpc UpdateBudget(UpdateBudgetRequest) returns (OrganizationSetup);
+  rpc UpdateFinancials(UpdateFinancialsRequest) returns (OrganizationSetup);
+  rpc AddCommodity(AddCommodityRequest) returns (OrganizationSetup);
+  rpc UpdateCommodity(UpdateCommodityRequest) returns (OrganizationSetup);
+  rpc RemoveCommodity(RemoveCommodityRequest) returns (OrganizationSetup);
+
+  // Roles efetivas (alçadas) do usuário
+  rpc GetUserRoles(GetUserRolesRequest) returns (UserRolesResponse);
+
+  // Membros e grupos
+  rpc ListMembers(ListMembersRequest) returns (ListMembersResponse);
+  rpc AddMember(AddMemberRequest) returns (AddMemberResponse);
+  rpc ChangeMemberDesk(ChangeMemberDeskRequest) returns (google.protobuf.Empty);
+  rpc RemoveMember(RemoveMemberRequest) returns (google.protobuf.Empty);
+  rpc ListGroups(ListGroupsRequest) returns (ListGroupsResponse);
+  rpc CreateGroup(CreateGroupRequest) returns (CreateGroupResponse);
+  rpc AddGroupMember(AddGroupMemberRequest) returns (google.protobuf.Empty);
+}
+
+enum Sector {
+  SECTOR_UNSPECIFIED = 0;
+  SECTOR_SUGAR_ENERGY = 1;
+  SECTOR_GRAINS = 2;
+  SECTOR_LIVESTOCK = 3;
+}
+
+// Instância do membro na companhia.
+enum Desk {
+  DESK_UNSPECIFIED = 0;
+  DESK_EXECUTION_DESK = 1;
+  DESK_COMMERCIAL = 2;
+  DESK_LOGISTICS = 3;
+  DESK_BOARD = 4;
+  DESK_RISK_CONTROL = 5;
+}
+
+message Organization {
+  string id = 1;
+  string name = 2;
+  string slug = 3;
+}
+
+message CompanyProfile {
+  string corporate_name = 1;
+  optional string tax_id = 2;
+  optional string headquarters = 3;
+  optional string group = 4;
+  Sector sector = 5;
+  int32 crop_year_start_month = 6;
+  optional string active_crop = 7; // AA/AA
+}
+
+message IndustrialProfile {
+  optional double milling_capacity = 1;
+  optional double mix_min_pct = 2;
+  optional double mix_max_pct = 3;
+  optional double mix_guidance_pct = 4;
+}
+
+// Orçamento e gatilhos em ¢/lb-equivalente.
+message Budget {
+  optional double cash_cost = 1;       // custo caixa · gatilho de fixação
+  optional double economic_floor = 2;  // piso econômico
+  optional double equivalent_price = 3;
+  optional double target_margin_pct = 4;
+}
+
+message Financials {
+  optional double cash = 1;
+  optional double credit_lines = 2;
+  optional double monthly_fixed_cost = 3;
+  optional double net_debt = 4;
+  optional double ebitda = 5;
+  optional double usd_debt = 6;
+  optional string reference_date = 7;
+  optional double leverage = 8; // dívida líquida / EBITDA (somente leitura)
+}
+
+message OrganizationCommodity {
+  string id = 1;
+  Commodity commodity = 2;
+  double capacity = 3;
+  MeasurementUnit unit = 4;
+  optional string price_reference = 5;
+  string currency = 6;
+  bool sells = 7;
+}
+
+message OrganizationSetup {
+  string id = 1;
+  string name = 2;
+  string slug = 3;
+  CompanyProfile profile = 4;
+  IndustrialProfile industrial = 5;
+  Budget budget = 6;
+  Financials financials = 7;
+  repeated OrganizationCommodity commodities = 8;
+}
+
+message Member {
+  string id = 1;
+  string user_id = 2;
+  string email = 3;
+  string full_name = 4;
+  Desk desk = 5;
+  repeated string rules = 6;
+  repeated string groups = 7;
+}
+
+message Group {
+  string id = 1;
+  string name = 2;
+  bool is_default = 3;
+  repeated string rules = 4;
+  repeated string member_ids = 5;
+}
+
+message CreateOrganizationRequest {
+  RequestContext context = 1;
+  string name = 2;
+}
+
+message ListUserOrganizationsRequest {
+  RequestContext context = 1;
+}
+
+message ListOrganizationsResponse {
+  repeated Organization organizations = 1;
+}
+
+message GetOrganizationRequest {
+  RequestContext context = 1;
+}
+
+message UpdateOrganizationRequest {
+  RequestContext context = 1;
+  string name = 2;
+}
+
+message UpdateCompanyProfileRequest {
+  RequestContext context = 1;
+  CompanyProfile profile = 2;
+}
+
+message UpdateIndustrialProfileRequest {
+  RequestContext context = 1;
+  IndustrialProfile industrial = 2;
+}
+
+message UpdateBudgetRequest {
+  RequestContext context = 1;
+  Budget budget = 2;
+}
+
+message UpdateFinancialsRequest {
+  RequestContext context = 1;
+  Financials financials = 2;
+}
+
+message CommodityInput {
+  double capacity = 1;
+  MeasurementUnit unit = 2;
+  optional string price_reference = 3;
+  string currency = 4;
+  bool sells = 5;
+}
+
+message AddCommodityRequest {
+  RequestContext context = 1;
+  Commodity commodity = 2;
+  CommodityInput data = 3;
+}
+
+message UpdateCommodityRequest {
+  RequestContext context = 1;
+  string commodity_id = 2;
+  CommodityInput data = 3;
+}
+
+message RemoveCommodityRequest {
+  RequestContext context = 1;
+  string commodity_id = 2;
+}
+
+message GetUserRolesRequest {
+  RequestContext context = 1;
+}
+
+message UserRolesResponse {
+  repeated string roles = 1;
+}
+
+message ListMembersRequest {
+  RequestContext context = 1;
+}
+
+message ListMembersResponse {
+  repeated Member members = 1;
+}
+
+message AddMemberRequest {
+  RequestContext context = 1;
+  string email = 2;
+  string rule_code = 3;
+  Desk desk = 4;
+}
+
+message AddMemberResponse {
+  string member_id = 1;
+}
+
+message ChangeMemberDeskRequest {
+  RequestContext context = 1;
+  string member_id = 2;
+  Desk desk = 3;
+}
+
+message RemoveMemberRequest {
+  RequestContext context = 1;
+  string member_id = 2;
+}
+
+message ListGroupsRequest {
+  RequestContext context = 1;
+}
+
+message ListGroupsResponse {
+  repeated Group groups = 1;
+}
+
+message CreateGroupRequest {
+  RequestContext context = 1;
+  string name = 2;
+  repeated string rule_codes = 3;
+}
+
+message CreateGroupResponse {
+  string group_id = 1;
+}
+
+message AddGroupMemberRequest {
+  RequestContext context = 1;
+  string group_id = 2;
+  string member_id = 3;
+}

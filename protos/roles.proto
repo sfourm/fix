@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package fix.v1;
+
+option csharp_namespace = "Fix.Contracts.V1";
+
+import "google/protobuf/empty.proto";
+
+// Roles: permissões atômicas do sistema (ex.: create_policy, approve_mandate, self_approve).
+service RoleService {
+  rpc ListRoles(google.protobuf.Empty) returns (ListRolesResponse);
+}
+
+message Role {
+  string id = 1;
+  string code = 2;
+  string description = 3;
+}
+
+message ListRolesResponse {
+  repeated Role roles = 1;
+}

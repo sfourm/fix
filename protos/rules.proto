@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package fix.v1;
+
+option csharp_namespace = "Fix.Contracts.V1";
+
+import "google/protobuf/empty.proto";
+
+// Rules: conjuntos de roles atribuídos a membros e grupos (ex.: administrador, gestor, operador).
+service RuleService {
+  rpc ListRules(google.protobuf.Empty) returns (ListRulesResponse);
+}
+
+message Rule {
+  string id = 1;
+  string code = 2;
+  string name = 3;
+  repeated string roles = 4; // códigos das roles concedidas
+}
+
+message ListRulesResponse {
+  repeated Rule rules = 1;
+}
