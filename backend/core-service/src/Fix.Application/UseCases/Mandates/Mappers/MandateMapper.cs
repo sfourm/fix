@@ -14,6 +14,7 @@ internal static class MandateMapper
 
         return new MandateDto(
             mandate.Id,
+            mandate.Code,
             mandate.PolicyId,
             policy?.Code ?? string.Empty,
             policy?.Version ?? string.Empty,

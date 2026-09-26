@@ -1,4 +1,5 @@
 import type { Page } from '../../../cross-cutting/paging/page.js';
+import type { LinkOrderMandateCommand } from '../commands/link-order-mandate.command.js';
 import type { ApproveOrderCommand } from '../commands/approve-order.command.js';
 import type { ConfirmOrderCommand } from '../commands/confirm-order.command.js';
 import type { DeleteOrderCommand } from '../commands/delete-order.command.js';
@@ -15,6 +16,7 @@ import type { ListOrdersQuery } from '../queries/list-orders.query.js';
 export interface OrderGateway {
   register(command: RegisterOrderCommand): Promise<OrderDto>;
   update(command: UpdateOrderCommand): Promise<OrderDto>;
+  link(command: LinkOrderMandateCommand): Promise<OrderDto>;
   approve(command: ApproveOrderCommand): Promise<OrderDto>;
   reject(command: RejectOrderCommand): Promise<OrderDto>;
   delete(command: DeleteOrderCommand): Promise<void>;

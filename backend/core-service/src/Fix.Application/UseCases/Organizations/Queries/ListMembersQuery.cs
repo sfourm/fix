@@ -6,7 +6,7 @@ using Fix.Domain.AggregateRoots.Roles;
 
 namespace Fix.Application.Organizations.Queries;
 
-[RequireRole(RoleCodes.ViewUsers)]
+[RequireRole(RoleCodes.ViewUser)]
 public sealed record ListMembersQuery(Guid UserId, Guid OrganizationId)
     : IQuery<IReadOnlyList<MemberDto>>, IOrganizationRequest;
 

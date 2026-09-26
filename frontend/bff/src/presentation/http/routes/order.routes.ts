@@ -34,6 +34,13 @@ export function orderRoutes(orders: OrderService): Router {
     res.status(204).end();
   });
 
+  /** Vínculo a posteriori (boleta sem mandato): exige justificativa e deixa o carimbo para sempre. */
+  router.post('/:id/link', async (req, res) => {
+    const { id } = parse(idParam, req.params);
+    const body = parse(schemas.linkOrderMandate, req.body);
+    res.json(await orders.link({ context: organizationContext(req), id, ...body }));
+  });
+
   // ---------- Aprovação ----------
 
   router.post('/:id/approve', async (req, res) => {
@@ -48,7 +55,7 @@ export function orderRoutes(orders: OrderService): Router {
     res.json(await orders.reject({ context: organizationContext(req), id, note }));
   });
 
-  // ---------- Confirmation (middle office) ----------
+  // ---------- Confirmação (middle office) ----------
 
   router.post('/:id/confirmation', async (req, res) => {
     const { id } = parse(idParam, req.params);

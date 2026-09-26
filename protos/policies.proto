@@ -68,6 +68,27 @@ message PolicyLimits {
   int32 logistics_deadline_months = 9;
   double freight_ceiling_pct = 10;
   double covered_call_max_pct = 11;
+  // Contingência escalonada (reserva da produção projetada que nunca é vendida nem fixada). Nomes por extenso: o
+  // proto-loader do BFF manteria o "_" antes de dígito (contingency_1MonthPct).
+  double contingency_one_month_pct = 12;
+  double contingency_six_months_pct = 13;
+  double contingency_twelve_months_pct = 14;
+  double contingency_twenty_four_months_pct = 15;
+  double contingency_thirty_six_months_pct = 16;
+  // Recompra quando o vendido passa do novo disponível.
+  double buyback_trigger_pct = 17;
+  int32 buyback_deadline_business_days = 18;
+  // Estresse de caixa.
+  double stress_sigmas = 19;
+  int32 stress_days = 20;
+  // Régua de fixação (percentil da série FG/A).
+  int32 pricing_hot_percentile = 21;
+  int32 pricing_cold_percentile = 22;
+  // Mix e controles.
+  double mix_shift_max_pp = 23;
+  int32 confirmation_deadline_business_days = 24;
+  int32 registration_deadline_days = 25;
+  int32 deviation_report_hours = 26;
 }
 
 message PolicyAxis {

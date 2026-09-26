@@ -21,7 +21,7 @@ export interface Area {
 
 /**
  * Menu lateral: Home e três áreas. Políticas é a raiz da cadeia 1:N (política → mandato → boleta): mandatos, boletas,
- * aprovações e confirmations só aparecem dentro de uma política — o menu mostra o caminho aberto como trilha.
+ * aprovações e confirmações só aparecem dentro de uma política — o menu mostra o caminho aberto como trilha.
  * Usuários e Organização mostram os subitens quando abertas.
  */
 export const AREAS: Area[] = [
@@ -29,11 +29,15 @@ export const AREAS: Area[] = [
   {
     key: 'policies',
     label: 'Políticas',
-    hint: 'mandatos · boletas',
+    hint: 'mandatos · boletas · exceções',
     to: '/policies',
-    match: /^\/policies(\/|$)/,
+    match: /^\/(policies|exceptions)(\/|$)/,
     permission: Permission.ViewPolicy,
-    children: [],
+    children: [
+      { to: '/policies', label: 'Políticas', match: /^\/policies(\/|$)/ },
+      // Boletas sem mandato ou FORA do enquadramento (FIX2 · I-01: desvio exposto, nunca silencioso).
+      { to: '/exceptions', label: 'Exceções', permission: Permission.ViewOrder, match: /^\/exceptions(\/|$)/ },
+    ],
   },
   {
     key: 'users',
@@ -49,13 +53,13 @@ export const AREAS: Area[] = [
   {
     key: 'organization',
     label: 'Organização',
-    hint: 'setup · contrapartes',
+    hint: 'setup · contrapartes · auditoria',
     to: '/setup',
-    match: /^\/(setup|counterparties|timeline)$/,
+    match: /^\/(setup|counterparties|audit)$/,
     children: [
       { to: '/setup', label: 'Setup da companhia', match: /^\/setup$/ },
       { to: '/counterparties', label: 'Contrapartes', permission: Permission.ViewCounterparties, match: /^\/counterparties$/ },
-      { to: '/timeline', label: 'Timeline', match: /^\/timeline$/ },
+      { to: '/audit', label: 'Auditoria', match: /^\/audit$/ },
     ],
   },
 ];

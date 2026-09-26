@@ -62,6 +62,7 @@ public sealed class MandateTests
         var policy = TestData.ActivePolicy();
 
         var mandate = Mandate.Issue(
+            1,
             policy,
             TestData.AxisOf(policy, RiskFactor.Price),
             MandateType.Pricing,
@@ -79,6 +80,7 @@ public sealed class MandateTests
         var policy = TestData.ActivePolicy();
 
         Assert.Throws<DomainException>(() => Mandate.Issue(
+            1,
             policy,
             TestData.AxisOf(policy, RiskFactor.Currency),
             MandateType.Pricing,
@@ -93,6 +95,7 @@ public sealed class MandateTests
     {
         var policy = TestData.ActivePolicy();
         var mandate = Mandate.Issue(
+            1,
             policy, TestData.AxisOf(policy, RiskFactor.Price), MandateType.Pricing, TestData.PricingTerms(),
             Compliance.Outside("fora"), TestData.UserId, issuerHasAuthority: false);
 
@@ -110,6 +113,7 @@ public sealed class MandateTests
         var terms = TestData.PricingTerms(lots: null) with { Price = PriceCriteria.None() };
 
         Assert.Throws<DomainException>(() => Mandate.Issue(
+            1,
             policy, TestData.AxisOf(policy, RiskFactor.Price), MandateType.Pricing, terms,
             Compliance.Within("ok"), TestData.UserId, issuerHasAuthority: true));
     }

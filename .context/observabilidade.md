@@ -7,7 +7,7 @@
 | OpenTelemetry Collector | Recebe OTLP de todos os serviços; exporta traces ao Jaeger e métricas ao Prometheus; gera métricas a partir dos spans | `4317` (gRPC), `4318` (HTTP), `8888` (métricas do coletor), `8889` (métricas das apps) |
 | Jaeger | Armazena e mostra traces (em memória: reiniciar apaga) | http://localhost:16686 |
 | Prometheus | Séries temporais e exemplars | http://localhost:9090 |
-| Grafana | Dashboards (provisionados) | http://localhost:3001 (`admin`/`admin`) |
+| Grafana | Dashboards (editáveis pela interface) | http://localhost:3001 (`admin`/`admin`) |
 
 ```bash
 cd observability && docker compose up -d
@@ -37,9 +37,13 @@ como filhos do request no BFF. Toda resposta do BFF traz `x-trace-id` para achar
 
 ## Grafana
 
-Datasources (`grafana/provisioning/datasources/datasources.yaml`, uids fixos `prometheus` e `jaeger`) e dashboards
-(`grafana/dashboards/*.json`, pasta FIX) são provisionados por arquivo. O provisionamento apaga e recria os dois datasources
-a cada start (`deleteDatasources`), o que corrige volumes antigos com uids gerados.
+Datasources (`grafana/provisioning/datasources/datasources.yaml`, uids fixos `prometheus` e `jaeger`) são provisionados por
+arquivo; o provisionamento apaga e recria os dois a cada start (`deleteDatasources`), o que corrige volumes antigos com uids gerados.
+
+Dashboards (`grafana/dashboards/*.json`, pasta FIX) **não** são provisionados por arquivo: desde o Grafana 12 a interface trata
+dashboard provisionado como "gerenciado" e, ao salvar, só oferece baixar o JSON (mesmo com `allowUiUpdates`). Eles entram pela
+API com `grafana/seed-dashboards.sh` (serviço `grafana-seed` no docker-compose; Job `grafana-dashboards-seed`, hook pós-deploy,
+no chart), que só cria o que não existe. Assim ficam editáveis e salvos no banco do Grafana; o JSON do repositório é a semente.
 
 ### Fix Platform - Observabilidade & Telemetria (`fix-telemetry-overview`)
 Visão geral: serviços ativos, taxa de requests, latência p50/p95/p99 por serviço, ingestão e exportação do coletor.
@@ -70,8 +74,8 @@ de traces do Jaeger no Grafana nomeia o trace pelo primeiro span recebido; por i
 - **BFF**: `trace.getTracer(...)` / `metrics.getMeter('fix-bff')` de `@opentelemetry/api`. Nova dependência CommonJS que precise
   de auto-instrumentação: inclua em `PRELOAD_COMMONJS` no `instrumentation.ts`. Evite labels de alta cardinalidade (ids): use a
   rota canônica ou o "keyspace", nunca a chave/URL completa.
-- **Dashboards**: edite no Grafana e exporte o JSON para `observability/grafana/dashboards/` (o provisionamento relê a pasta a
-  cada 10 s). Painéis com razão devem tratar numerador vazio (`or vector(0)`) para não mostrar "sem dados" quando não há erros.
+- **Dashboards**: edite e salve direto no Grafana. Para levar a edição ao repositório (semente de instalações novas), exporte
+  o JSON para `observability/grafana/dashboards/`; num Grafana existente, a semente só recria um dashboard apagado. Painéis com razão devem tratar numerador vazio (`or vector(0)`) para não mostrar "sem dados" quando não há erros.
 
 ## Configuração nas aplicações
 

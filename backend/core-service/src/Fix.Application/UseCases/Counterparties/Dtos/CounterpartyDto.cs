@@ -4,6 +4,7 @@ namespace Fix.Application.Counterparties.Dtos;
 
 public sealed record CounterpartyDto(
     Guid Id,
+    string Code,
     string Name,
     CounterpartyType Type,
     string? Document,

@@ -10,7 +10,8 @@ namespace Fix.Application.Orders.Commands;
 public sealed record RegisterOrderCommand(
     Guid UserId,
     Guid OrganizationId,
-    Guid MandateId,
+    /// <summary>Nulo = boleta sem mandato (desvio: exige justificativa e fica exposto).</summary>
+    Guid? MandateId,
     Guid CounterpartyId,
     OrderTermsInput Terms)
     : ICommand<OrderDto>, IOrganizationRequest;

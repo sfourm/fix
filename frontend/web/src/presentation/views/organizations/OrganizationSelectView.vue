@@ -74,7 +74,7 @@ onMounted(load);
         <section v-if="support.length" class="stack" style="gap: 8px">
           <div>
             <h2 style="font-size: 1rem">Suporte FIX</h2>
-            <p class="muted small" style="margin: 2px 0 0">Organizações clientes: você vê e edita para apoiá-las; aprovações e confirmations ficam com elas.</p>
+            <p class="muted small" style="margin: 2px 0 0">Organizações clientes: você vê e edita para apoiá-las; aprovações e confirmações ficam com elas.</p>
           </div>
           <ul class="orgs">
             <li v-for="org in support" :key="org.id">

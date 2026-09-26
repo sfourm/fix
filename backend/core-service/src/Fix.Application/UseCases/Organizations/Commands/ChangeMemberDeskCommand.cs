@@ -6,7 +6,7 @@ using Fix.Domain.AggregateRoots.Roles;
 
 namespace Fix.Application.Organizations.Commands;
 
-[RequireRole(RoleCodes.EditOrganization)]
+[RequireRole(RoleCodes.UpdateUser)]
 public sealed record ChangeMemberDeskCommand(Guid UserId, Guid OrganizationId, Guid MemberId, Desk? Desk)
     : ICommand, IOrganizationRequest;
 

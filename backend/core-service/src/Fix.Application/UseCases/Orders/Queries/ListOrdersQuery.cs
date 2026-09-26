@@ -16,6 +16,8 @@ public sealed record ListOrdersQuery(
     ApprovalStatus? Approval,
     ConfirmationStatus? Confirmation,
     int Page,
-    int PageSize)
+    int PageSize,
+    bool WithoutMandate = false,
+    bool OnlyOutside = false)
     : IQuery<PagedList<OrderDto>>, IOrganizationRequest;
 

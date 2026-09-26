@@ -27,7 +27,7 @@ const router = useRouter();
       </thead>
       <tbody>
         <tr v-for="m in mandates" :key="m.id" class="clickable" @click="router.push(paths.mandate(m.policyId, m.id))">
-          <td><strong>{{ m.terms.title }}</strong></td>
+          <td><span class="muted num">{{ m.code }}</span> <strong>{{ m.terms.title }}</strong></td>
           <td v-if="showPolicy" class="muted small">{{ m.policyCode.toUpperCase() }} {{ m.policyVersion }} · {{ m.axisCode }}</td>
           <td>{{ mandateTypeLabel[m.type] }}</td>
           <td>{{ m.terms.tenor ?? '—' }}</td>

@@ -18,6 +18,8 @@ internal static class OrderContractMapper
             PriceUnit = order.PriceUnit,
             OptionKind = order.OptionKind.ToContract<Contract.OptionKind>(),
             TradeDate = order.TradeDate.ToContract(),
+            Commodity = order.Commodity.ToContract<Contract.Commodity>(),
+            CoveredSale = order.CoveredSale,
         };
 
         if (order.Lots is { } lots) terms.Lots = (double)lots;
@@ -28,7 +30,7 @@ internal static class OrderContractMapper
         var contract = new Contract.Order
         {
             Id = order.Id.ToString(),
-            MandateId = order.MandateId.ToString(),
+            Code = order.Code,
             MandateTitle = order.MandateTitle,
             CounterpartyId = order.CounterpartyId.ToString(),
             CounterpartyName = order.CounterpartyName,
@@ -38,7 +40,15 @@ internal static class OrderContractMapper
             RequestedBy = order.RequestedBy.ToString(),
             Confirmation = order.Confirmation.ToContract<Contract.ConfirmationStatus>(),
             ConfirmationOverdue = order.ConfirmationOverdue,
+            Compliance = order.Compliance.ToContract(),
+            LinkedAfterExecution = order.LinkedAfterExecution,
+            ExceedsMandate = order.ExceedsMandate,
         };
+
+        if (order.MandateId is { } mandateId) contract.MandateId = mandateId.ToString();
+        if (order.MandateCode is { } mandateCode) contract.MandateCode = mandateCode;
+        if (order.DeviationNote is { } deviation) contract.DeviationNote = deviation;
+        if (order.ConfirmationBy is { } confirmationBy) contract.ConfirmationBy = confirmationBy.ToString();
 
         if (order.DecidedBy is { } decidedBy) contract.DecidedBy = decidedBy.ToString();
         if (order.DecidedAt is { } decidedAt) contract.DecidedAt = decidedAt.ToContract();
@@ -62,7 +72,10 @@ internal static class OrderContractMapper
             terms.OptionKind.ToOptionalDomain<Entities.OptionKind>("terms.option_kind"),
             terms.Premium.ToOptionalDecimal(terms.HasPremium),
             terms.TradeDate.ToDate("terms.trade_date"),
-            terms.Notes.ToOptionalString(terms.HasNotes));
+            terms.Notes.ToOptionalString(terms.HasNotes),
+            terms.Commodity.ToOptionalDomain<Fix.Domain.Common.Commodity>("terms.commodity"),
+            terms.CoveredSale,
+            terms.Justification.ToOptionalString(terms.HasJustification));
     }
 }
 

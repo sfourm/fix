@@ -30,7 +30,12 @@ const currentArea = computed(() => areas.value.find((a) => a.match.test(route.pa
 const crumbs = computed(() => crumbsFor(route, trail));
 
 /** Trilha aberta dentro de Políticas (política › mandato › boleta), exibida sob o item do menu. */
-const policyTrail = computed(() => (currentArea.value?.key === 'policies' ? crumbs.value.slice(1).filter((c) => c.to) : []));
+const policyTrail = computed(() => {
+  const area = currentArea.value;
+  if (area?.key !== 'policies') return [];
+  // Passos que já são itens do menu (ex.: Exceções) não se repetem na trilha.
+  return crumbs.value.slice(1).filter((c) => c.to && !area.children.some((child) => child.to === c.to));
+});
 
 /** "Voltar" sobe um nível no caminho (não depende do histórico do navegador). */
 const parent = computed(() => [...crumbs.value].slice(0, -1).reverse().find((c) => c.to) ?? null);
@@ -106,7 +111,7 @@ watch(() => route.fullPath, () => (menuOpen.value = false));
               <span>{{ area.label }}</span>
               <small>{{ area.hint }}</small>
             </span>
-            <span v-if="area.key === 'policies' && pending > 0" class="count" :title="`${pending} pendência(s): aprovações e confirmations`">{{ pending }}</span>
+            <span v-if="area.key === 'policies' && pending > 0" class="count" :title="`${queue.pendingApprovals} aguardando aprovação · ${queue.openConfirmations} confirmação(ões) em aberto`">{{ pending }}</span>
           </RouterLink>
 
           <div v-if="currentArea?.key === area.key && (area.children.length || policyTrail.length)" class="nav-sub">
@@ -159,15 +164,24 @@ watch(() => route.fullPath, () => (menuOpen.value = false));
           </template>
         </nav>
         <span v-if="organization.internalAccess" class="badge badge-info hide-sm" title="Você vê e edita esta organização para apoiá-la">Suporte FIX</span>
-        <RouterLink v-if="pending > 0" to="/policies" class="badge badge-warning pending" :title="`${pending} pendência(s)`">
-          {{ pending }}<span class="hide-sm">&nbsp;pendência(s)</span>
+        <!-- Aguardando aprovação (decisão) e confirmações em aberto (a conferir, atrasado, divergente ou recusado) são coisas diferentes. -->
+        <RouterLink v-if="queue.pendingApprovals > 0" to="/policies" class="badge badge-warning pending" :title="`${queue.pendingApprovals} mandato(s)/boleta(s) aguardando aprovação`">
+          {{ queue.pendingApprovals }}<span class="hide-sm">&nbsp;aguardando aprovação</span>
+        </RouterLink>
+        <RouterLink
+          v-if="queue.openConfirmations > 0"
+          to="/policies"
+          class="badge badge-info pending"
+          :title="`${queue.openConfirmations} boleta(s) com confirmação em aberto: a conferir, atrasado, divergente ou recusado`"
+        >
+          {{ queue.openConfirmations }}<span class="hide-sm">&nbsp;confirmação(ões) em aberto</span>
         </RouterLink>
         <ThemeToggle compact />
       </header>
 
       <div class="wrap">
         <p v-if="organization.internalAccess" class="alert alert-info support-banner" role="note">
-          <strong>Acesso de suporte FIX.</strong> Você vê e edita esta organização para apoiá-la; aprovações, confirmations e a alçada de emissão ficam com ela.
+          <strong>Acesso de suporte FIX.</strong> Você vê e edita esta organização para apoiá-la; aprovações, confirmações e a alçada de emissão ficam com ela.
         </p>
         <RouterView v-slot="{ Component }">
           <div :key="viewKey" class="page-enter">

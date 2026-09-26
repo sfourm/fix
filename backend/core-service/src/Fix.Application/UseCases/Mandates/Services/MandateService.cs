@@ -40,6 +40,7 @@ internal sealed class MandateService(
         var roles = await roleResolver.GetRolesAsync(command.OrganizationId, command.UserId, cancellationToken);
 
         var mandate = Mandate.Issue(
+            await mandateRepository.NextNumberAsync(cancellationToken),
             policy,
             command.AxisId,
             command.Type,

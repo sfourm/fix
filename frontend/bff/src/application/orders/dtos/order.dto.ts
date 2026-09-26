@@ -5,7 +5,12 @@ import type { OrderTermsDto } from './order-terms.dto.js';
 
 export interface OrderDto {
   id: string;
-  mandateId: string;
+  /** Código legível da organização (HX-0001). */
+  code: string;
+  /** Nulo = boleta sem mandato (desvio sinalizado, FIX2 · I-01). */
+  mandateId: string | null;
+  /** MD-01 do mandato, quando houver. */
+  mandateCode: string | null;
   mandateTitle: string;
   counterpartyId: string;
   counterpartyName: string;
@@ -23,4 +28,14 @@ export interface OrderDto {
   confirmationNote: string | null;
   /** Pendente há mais de 2 dias úteis. */
   confirmationOverdue: boolean;
+  /** Middle office que registrou a confirmação (nunca quem executou). */
+  confirmationBy: string | null;
+  /** Enquadramento calculado da boleta (dentro/FORA e o motivo). */
+  compliance: { status: 'Within' | 'Outside'; reason: string };
+  /** Mandato vinculado depois da execução: carimbo permanente. */
+  linkedAfterExecution: boolean;
+  /** Estourou o saldo do mandato. */
+  exceedsMandate: boolean;
+  /** Justificativa do desvio. */
+  deviationNote: string | null;
 }

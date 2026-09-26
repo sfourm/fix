@@ -6,6 +6,6 @@ using Fix.Domain.AggregateRoots.Roles;
 namespace Fix.Application.Organizations.Commands;
 
 /// <summary>Tira o membro do grupo (ele continua na organização).</summary>
-[RequireRole(RoleCodes.EditOrganization)]
+[RequireRole(RoleCodes.UpdateUser)]
 public sealed record RemoveGroupMemberCommand(Guid UserId, Guid OrganizationId, Guid GroupId, Guid MemberId)
     : ICommand, IOrganizationRequest;

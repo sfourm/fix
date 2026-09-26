@@ -9,13 +9,27 @@ public sealed record TimelineEntryDto(
     Guid? AuthorId,
     DateTimeOffset OccurredAt);
 
+/// <summary>Filtros da auditoria (todos opcionais; <see cref="To"/> é exclusivo). <see cref="Skip"/>/<see cref="Take"/> recortam a página.</summary>
+public sealed record TimelineFilter(
+    string? EntityType,
+    Guid? EntityId,
+    string? Action,
+    Guid? AuthorId,
+    DateTimeOffset? From,
+    DateTimeOffset? To,
+    string? Search,
+    int Skip,
+    int Take,
+    bool CountTotal);
+
+/// <summary>Registros da página e, quando pedido, o total que atende aos filtros.</summary>
+public sealed record TimelinePage(IReadOnlyList<TimelineEntryDto> Entries, int? TotalCount, int Page, int PageSize);
+
 /// <summary>Leitura da trilha de auditoria gravada pelo interceptor do EF Core.</summary>
 public interface ITimelineReader
 {
-    Task<IReadOnlyList<TimelineEntryDto>> ListAsync(
+    Task<(IReadOnlyList<TimelineEntryDto> Entries, int? TotalCount)> ListAsync(
         Guid organizationId,
-        string? entityType,
-        Guid? entityId,
-        int limit,
+        TimelineFilter filter,
         CancellationToken cancellationToken);
 }

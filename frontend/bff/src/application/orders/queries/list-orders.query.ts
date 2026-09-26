@@ -8,5 +8,9 @@ export interface ListOrdersQuery {
   mandateId: string | null;
   approval: ApprovalStatus | null;
   confirmation: ConfirmationStatus | null;
+  /** Só boletas sem mandato. */
+  withoutMandate: boolean;
+  /** Só boletas FORA do enquadramento. */
+  onlyOutside: boolean;
   page: PageRequest;
 }

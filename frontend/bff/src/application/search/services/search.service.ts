@@ -88,7 +88,10 @@ export class SearchService {
     const query = createQuery(type, widgetQuery);
     this.validateWidgetQuery(query);
 
-    const criteria = await this.effectiveCriteria(actor, query.source, query.criteria, query.filterId, options.trustFilter);
+    const criteria = SearchService.onlyValid(
+      query.source,
+      await this.effectiveCriteria(actor, query.source, query.criteria, query.filterId, options.trustFilter),
+    );
     const { rows, truncated, cached } = await this.rows.read(context, query.source, criteria);
     const matched = rows.filter(compileCriteria(query.source, criteria));
     const result = aggregate(query.source, matched, query);
@@ -128,6 +131,20 @@ export class SearchService {
     }
 
     validateCriteria(query.source, query.criteria, 'query.criteria');
+  }
+
+  /**
+   * Pendente não entra em agregado (FIX2 · I-02): nos widgets, boleta conta só se aprovada e mandato só se ativo ou
+   * encerrado — o filtro canônico "vOk" do protótipo. Quem filtra explicitamente a aprovação/status (ex.: KPI de
+   * "aguardando aprovação") decide sozinho. As listagens não passam por aqui: elas mostram os pendentes.
+   */
+  private static onlyValid(source: DataSource, criteria: FilterCriterion[]): FilterCriterion[] {
+    const guard: Partial<Record<DataSource, FilterCriterion>> = {
+      orders: { field: 'approval', operator: 'eq', value: 'Approved' },
+      mandates: { field: 'status', operator: 'in', value: ['Active', 'Closed'] },
+    };
+    const rule = guard[source];
+    return rule && !criteria.some((c) => c.field === rule.field) ? [...criteria, rule] : criteria;
   }
 
   /** Condições avulsas + condições do filtro salvo (que precisa ser do mesmo conjunto de dados). */

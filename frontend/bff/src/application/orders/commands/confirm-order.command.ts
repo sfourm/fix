@@ -3,6 +3,6 @@ import type { RequestContext } from '../../../cross-cutting/context/request-cont
 export interface ConfirmOrderCommand {
   context: RequestContext;
   id: string;
-  /** Data de recebimento do confirmation. */
+  /** Data de recebimento da confirmação. */
   receivedOn: string;
 }

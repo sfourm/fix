@@ -1,4 +1,5 @@
 using Fix.Domain.Abstractions;
+using Fix.Domain.Common;
 using Fix.Domain.AggregateRoots.Orders;
 using Fix.Domain.AggregateRoots.Orders.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -28,10 +29,24 @@ internal sealed class OrderRepository(FixDbContext dbContext) : IOrderRepository
             query = query.Where(o => o.Confirmation == confirmation);
         }
 
+        if (filter.WithoutMandate)
+        {
+            query = query.Where(o => o.MandateId == null);
+        }
+
+        if (filter.OnlyOutside)
+        {
+            query = query.Where(o => o.Compliance.Status == ComplianceStatus.Outside);
+        }
+
         return query
             .OrderByDescending(o => o.Id)
             .ToPagedListAsync(page, pageSize, cancellationToken);
     }
+
+    // O filtro de organização do DbContext limita ao tenant atual.
+    public async Task<int> NextNumberAsync(CancellationToken cancellationToken) =>
+        (await dbContext.Orders.MaxAsync(o => (int?)o.Number, cancellationToken) ?? 0) + 1;
 
     public void Add(Order order) => dbContext.Orders.Add(order);
 

@@ -30,15 +30,19 @@ internal sealed class OrderService(
 {
     // ---------- Commands ----------
 
-    /// <summary>Registra a boleta no mandato ativo; com alçada (self_approve) já nasce aprovada e consome saldo.</summary>
+    /// <summary>
+    /// Registra a boleta (com ou sem mandato). Dentro do enquadramento e com alçada (self_approve) já nasce aprovada e
+    /// consome saldo; desvios exigem justificativa e vão para a fila (FIX2 · I-01).
+    /// </summary>
     public async Task<OrderDto> RegisterOrderAsync(RegisterOrderCommand command, CancellationToken cancellationToken)
     {
-        var mandate = await GetMandateAsync(command.MandateId, cancellationToken);
+        var mandate = command.MandateId is { } mandateId ? await GetMandateAsync(mandateId, cancellationToken) : null;
         var counterparty = await GetCounterpartyAsync(command.CounterpartyId, cancellationToken);
-        var consumed = await ConsumedAsync(mandate.Id, null, cancellationToken);
+        var consumed = mandate is null ? 0 : await ConsumedAsync(mandate.Id, null, cancellationToken);
         var roles = await roleResolver.GetRolesAsync(command.OrganizationId, command.UserId, cancellationToken);
 
         var order = Order.Register(
+            await orderRepository.NextNumberAsync(cancellationToken),
             mandate,
             counterparty,
             command.Terms.ToTerms(),
@@ -49,40 +53,44 @@ internal sealed class OrderService(
         orderRepository.Add(order);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return order.ToDto(mandate.Title.Value, counterparty.Name.Value, timeProvider.Today());
+        return order.ToDto(mandate, counterparty.Name.Value, timeProvider.Today());
     }
 
     public async Task<OrderDto> UpdateOrderAsync(UpdateOrderCommand command, CancellationToken cancellationToken)
     {
         var order = await GetAsync(command.Id, cancellationToken);
-        var mandate = await GetMandateAsync(order.MandateId, cancellationToken);
+        var mandate = await FindMandateAsync(order.MandateId, cancellationToken);
         var counterparty = await GetCounterpartyAsync(command.CounterpartyId, cancellationToken);
-        var consumed = await ConsumedAsync(mandate.Id, order.Id, cancellationToken);
+        var consumed = mandate is null ? 0 : await ConsumedAsync(mandate.Id, order.Id, cancellationToken);
 
         order.Update(mandate, counterparty, command.Terms.ToTerms(), consumed);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return order.ToDto(mandate.Title.Value, counterparty.Name.Value, timeProvider.Today());
+        return order.ToDto(mandate, counterparty.Name.Value, timeProvider.Today());
     }
 
-    /// <summary>Na aprovação o saldo é conferido de novo, pois outras boletas podem ter consumido o mandato.</summary>
+    public async Task<OrderDto> LinkOrderMandateAsync(LinkOrderMandateCommand command, CancellationToken cancellationToken)
+    {
+        var order = await GetAsync(command.Id, cancellationToken);
+        var mandate = await GetMandateAsync(command.MandateId, cancellationToken);
+        var consumed = await ConsumedAsync(mandate.Id, order.Id, cancellationToken);
+
+        order.LinkMandate(mandate, consumed, command.Justification);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return await ToDtoAsync(order, mandate, cancellationToken);
+    }
+
+    /// <summary>Na aprovação o enquadramento é refeito, pois outras boletas podem ter consumido o mandato.</summary>
     public async Task<OrderDto> ApproveOrderAsync(ApproveOrderCommand command, CancellationToken cancellationToken)
     {
         var order = await GetAsync(command.Id, cancellationToken);
         await orgChart.EnsureCanDecideAsync(command.OrganizationId, command.UserId, order.RequestedBy, cancellationToken);
 
-        var mandate = await GetMandateAsync(order.MandateId, cancellationToken);
-        var authorized = mandate.Quantity;
-        if (authorized is not null)
-        {
-            var consumed = await ConsumedAsync(mandate.Id, order.Id, cancellationToken);
-            if (consumed + order.Quantity > authorized)
-            {
-                throw new DomainException($"Aprovar a boleta excederia o saldo do mandato (saldo {authorized - consumed:N0}).");
-            }
-        }
+        var mandate = await FindMandateAsync(order.MandateId, cancellationToken);
+        var consumed = mandate is null ? 0 : await ConsumedAsync(mandate.Id, order.Id, cancellationToken);
 
-        order.Approve(command.UserId, timeProvider.GetUtcNow(), command.Note);
+        order.Approve(mandate, consumed, command.UserId, timeProvider.GetUtcNow(), command.Note);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return await ToDtoAsync(order, mandate, cancellationToken);
@@ -108,19 +116,19 @@ internal sealed class OrderService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    // ---------- Commands: confirmation ----------
+    // ---------- Commands: confirmation (middle office; quem executou não confere) ----------
 
     public Task<OrderDto> ConfirmOrderAsync(ConfirmOrderCommand command, CancellationToken cancellationToken) =>
-        ChangeAsync(command.Id, o => o.Confirm(command.ReceivedOn), cancellationToken);
+        ChangeAsync(command.Id, o => o.Confirm(command.ReceivedOn, command.UserId), cancellationToken);
 
     public Task<OrderDto> MarkOrderDivergentAsync(MarkOrderDivergentCommand command, CancellationToken cancellationToken) =>
-        ChangeAsync(command.Id, o => o.MarkDivergent(command.Description), cancellationToken);
+        ChangeAsync(command.Id, o => o.MarkDivergent(command.Description, command.UserId), cancellationToken);
 
     public Task<OrderDto> RefuseOrderConfirmationAsync(RefuseOrderConfirmationCommand command, CancellationToken cancellationToken) =>
-        ChangeAsync(command.Id, o => o.RefuseConfirmation(command.Reason), cancellationToken);
+        ChangeAsync(command.Id, o => o.RefuseConfirmation(command.Reason, command.UserId), cancellationToken);
 
     public Task<OrderDto> ResolveOrderDivergenceAsync(ResolveOrderDivergenceCommand command, CancellationToken cancellationToken) =>
-        ChangeAsync(command.Id, o => o.ResolveDivergence(timeProvider.Today()), cancellationToken);
+        ChangeAsync(command.Id, o => o.ResolveDivergence(timeProvider.Today(), command.UserId), cancellationToken);
 
     // ---------- Queries ----------
 
@@ -131,22 +139,22 @@ internal sealed class OrderService(
     {
         var (page, pageSize) = Paging.Normalize(query.Page, query.PageSize);
         var orders = await orderRepository.ListAsync(
-            new OrderFilter(query.MandateId, query.Approval, query.Confirmation),
+            new OrderFilter(query.MandateId, query.Approval, query.Confirmation, query.WithoutMandate, query.OnlyOutside),
             page,
             pageSize,
             cancellationToken);
 
         var counterparties = (await counterpartyRepository.ListAsync(onlyHomologated: false, cancellationToken))
             .ToDictionary(c => c.Id, c => c.Name.Value);
-        var mandates = new Dictionary<Guid, string>();
-        foreach (var mandateId in orders.Items.Select(o => o.MandateId).Distinct())
+        var mandates = new Dictionary<Guid, Mandate?>();
+        foreach (var mandateId in orders.Items.Select(o => o.MandateId).OfType<Guid>().Distinct())
         {
-            mandates[mandateId] = (await mandateRepository.GetByIdAsync(mandateId, cancellationToken))?.Title.Value ?? string.Empty;
+            mandates[mandateId] = await mandateRepository.GetByIdAsync(mandateId, cancellationToken);
         }
 
         var today = timeProvider.Today();
         return orders.Map(o => o.ToDto(
-            mandates.GetValueOrDefault(o.MandateId, string.Empty),
+            o.MandateId is { } id ? mandates.GetValueOrDefault(id) : null,
             counterparties.GetValueOrDefault(o.CounterpartyId, string.Empty),
             today));
     }
@@ -165,9 +173,9 @@ internal sealed class OrderService(
 
     private async Task<OrderDto> ToDtoAsync(Order order, Mandate? mandate, CancellationToken cancellationToken)
     {
-        mandate ??= await mandateRepository.GetByIdAsync(order.MandateId, cancellationToken);
+        mandate ??= await FindMandateAsync(order.MandateId, cancellationToken);
         var counterparty = await counterpartyRepository.GetByIdAsync(order.CounterpartyId, cancellationToken);
-        return order.ToDto(mandate?.Title.Value ?? string.Empty, counterparty?.Name.Value ?? string.Empty, timeProvider.Today());
+        return order.ToDto(mandate, counterparty?.Name.Value ?? string.Empty, timeProvider.Today());
     }
 
     private async Task<decimal> ConsumedAsync(Guid mandateId, Guid? exceptOrderId, CancellationToken cancellationToken) =>
@@ -179,7 +187,9 @@ internal sealed class OrderService(
     private async Task<Mandate> GetMandateAsync(Guid id, CancellationToken cancellationToken) =>
         await mandateRepository.GetByIdAsync(id, cancellationToken) ?? throw new NotFoundException("Mandato", id);
 
+    private async Task<Mandate?> FindMandateAsync(Guid? id, CancellationToken cancellationToken) =>
+        id is { } mandateId ? await GetMandateAsync(mandateId, cancellationToken) : null;
+
     private async Task<Counterparty> GetCounterpartyAsync(Guid id, CancellationToken cancellationToken) =>
         await counterpartyRepository.GetByIdAsync(id, cancellationToken) ?? throw new NotFoundException("Contraparte", id);
 }
-

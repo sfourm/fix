@@ -7,7 +7,40 @@ import type { PolicyDto } from '../../../application/policies/dtos/policy.dto.js
 import { nullable } from './common.contract-mapper.js';
 import { instrumentPermissionEnum, policyStatusEnum, riskFactorEnum } from './enum.contract-mapper.js';
 
-export type ContractPolicyLimits = PolicyLimitsDto;
+/** No contrato a contingência vem por extenso (contingencyOneMonthPct...); no DTO, com o prazo em número. */
+export type ContractPolicyLimits = Omit<PolicyLimitsDto, 'contingency1MonthPct' | 'contingency6MonthsPct' | 'contingency12MonthsPct' | 'contingency24MonthsPct' | 'contingency36MonthsPct'> & {
+  contingencyOneMonthPct: number;
+  contingencySixMonthsPct: number;
+  contingencyTwelveMonthsPct: number;
+  contingencyTwentyFourMonthsPct: number;
+  contingencyThirtySixMonthsPct: number;
+};
+
+const CONTINGENCY: [keyof PolicyLimitsDto, keyof ContractPolicyLimits][] = [
+  ['contingency1MonthPct', 'contingencyOneMonthPct'],
+  ['contingency6MonthsPct', 'contingencySixMonthsPct'],
+  ['contingency12MonthsPct', 'contingencyTwelveMonthsPct'],
+  ['contingency24MonthsPct', 'contingencyTwentyFourMonthsPct'],
+  ['contingency36MonthsPct', 'contingencyThirtySixMonthsPct'],
+];
+
+export const fromContractLimits = (limits: Partial<ContractPolicyLimits> | null): PolicyLimitsDto => {
+  const dto = { ...emptyLimits, ...(limits ?? {}) } as PolicyLimitsDto & Record<string, unknown>;
+  for (const [key, contractKey] of CONTINGENCY) {
+    dto[key] = Number(limits?.[contractKey] ?? 0) as never;
+    delete dto[contractKey];
+  }
+  return dto;
+};
+
+export const toContractLimits = (limits: PolicyLimitsDto): ContractPolicyLimits => {
+  const contract = { ...limits } as Record<string, unknown>;
+  for (const [key, contractKey] of CONTINGENCY) {
+    contract[contractKey] = limits[key];
+    delete contract[key];
+  }
+  return contract as ContractPolicyLimits;
+};
 
 export interface ContractPolicyAxis {
   id: string;
@@ -77,6 +110,21 @@ const emptyLimits: PolicyLimitsDto = {
   logisticsDeadlineMonths: 0,
   freightCeilingPct: 0,
   coveredCallMaxPct: 0,
+  contingency1MonthPct: 0,
+  contingency6MonthsPct: 0,
+  contingency12MonthsPct: 0,
+  contingency24MonthsPct: 0,
+  contingency36MonthsPct: 0,
+  buybackTriggerPct: 0,
+  buybackDeadlineBusinessDays: 0,
+  stressSigmas: 0,
+  stressDays: 0,
+  pricingHotPercentile: 0,
+  pricingColdPercentile: 0,
+  mixShiftMaxPp: 0,
+  confirmationDeadlineBusinessDays: 0,
+  registrationDeadlineDays: 0,
+  deviationReportHours: 0,
 };
 
 export const toPolicySummaryDto = (p: ContractPolicySummary): PolicySummaryDto => ({
@@ -101,7 +149,7 @@ export const toPolicyDto = (p: ContractPolicy): PolicyDto => ({
   validTo: nullable(p.validTo),
   approvalRecord: nullable(p.approvalRecord),
   approvedOn: nullable(p.approvedOn),
-  limits: { ...emptyLimits, ...p.limits },
+  limits: fromContractLimits(p.limits),
   axes: p.axes.map((a) => ({
     id: a.id,
     code: a.code,

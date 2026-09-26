@@ -17,6 +17,12 @@ message GetTimelineRequest {
   optional string entity_type = 2; // ex.: "Policy", "Mandate", "Order", "OrganizationMember"
   optional string entity_id = 3;
   int32 limit = 4;
+  optional string action = 5;        // Created | Updated | Deleted
+  optional string author_id = 6;
+  optional string occurred_from = 7; // ISO 8601 (inclusive)
+  optional string occurred_to = 8;   // ISO 8601 (exclusive)
+  optional string search = 9;        // texto nos valores alterados ou no id da entidade
+  PageRequest page = 10;             // paginado: a resposta traz page com o total (sem page, vale limit)
 }
 
 message TimelineEntry {
@@ -31,4 +37,5 @@ message TimelineEntry {
 
 message GetTimelineResponse {
   repeated TimelineEntry entries = 1;
+  PageInfo page = 2; // presente quando o pedido veio paginado
 }

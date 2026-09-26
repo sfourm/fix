@@ -2,28 +2,41 @@
 import { computed, onMounted, watch } from 'vue';
 import { useApi } from '@/application/api-provider';
 import { useSessionStore } from '@/application/stores/session.store';
-import { childEntityLabel, entityTypeLabel, timelineActionLabel } from '@/domain/labels';
+import { entityTypeLabel, timelineActionLabel } from '@/domain/labels';
 import type { Member } from '@/domain/organization';
-import type { TimelineEntry } from '@/domain/timeline';
+import type { Page } from '@/domain/page';
+import type { TimelineEntry, TimelineFilters } from '@/domain/timeline';
 import { useLoader } from '../composables/useAsync';
 import { formatDateTime } from '../composables/format';
 import StateBlock from './StateBlock.vue';
+import { describeChanges } from './timeline-format';
 
-/** Histórico de auditoria (tabela timelines do core). Sem filtros mostra a organização inteira. */
+/** Auditoria (tabela timelines do core). Sem filtros mostra a organização inteira. */
 const props = defineProps<{
   entityType?: string;
   entityId?: string;
   limit?: number;
+  /** Ação, autor, período e busca (tela de Auditoria). */
+  filters?: TimelineFilters;
+  /** Com página, a lista vem paginada e avisa o total por `paged`. */
+  page?: number;
+  pageSize?: number;
   members?: Member[] | null;
   refreshKey?: number;
   /** Mostra só as primeiras linhas de cada alteração (cockpit). */
   compact?: boolean;
 }>();
 
+const emit = defineEmits<{ paged: [info: Omit<Page<TimelineEntry>, 'items'>] }>();
+
 const api = useApi();
-const { data, loading, error, load } = useLoader(() =>
-  api.timeline.list({ entityType: props.entityType, entityId: props.entityId, limit: props.limit ?? 50 }),
-);
+const scope = () => ({ entityType: props.entityType, entityId: props.entityId, ...(props.filters ?? {}) });
+const { data, loading, error, load } = useLoader(async () => {
+  if (!props.page) return api.timeline.list({ ...scope(), limit: props.limit ?? 50 });
+  const { items, ...info } = await api.timeline.page({ ...scope(), page: props.page, pageSize: props.pageSize ?? 25 });
+  emit('paged', info);
+  return items;
+});
 
 const session = useSessionStore();
 const authors = computed(() => {
@@ -38,56 +51,9 @@ const actionClass: Record<TimelineEntry['action'], string> = {
   Deleted: 'badge-danger',
 };
 
-const fieldLabel: Record<string, string> = {
-  Title: 'Título',
-  Name: 'Nome',
-  Slug: 'Identificador',
-  Code: 'Código',
-  Version: 'Versão',
-  Description: 'Descrição',
-  Status: 'Status',
-  Approval: 'Aprovação',
-  Confirmation: 'Confirmation',
-  Desk: 'Mesa',
-  IsDefault: 'Padrão',
-  IsHomologated: 'Homologada',
-  ApprovalRecord: 'Ata',
-  DecisionNote: 'Justificativa',
-  Consumed: 'Consumido',
-};
-
-/** 'PolicyAxis.Limits.Title' -> 'Eixo · Limits · Título' (prefixo = entidade filha do agregado). */
-function labelOf(field: string): string {
-  return field
-    .split('.')
-    .map((part, index) => (index === 0 && childEntityLabel[part]) || fieldLabel[part] || part)
-    .join(' · ');
-}
-
-/** Campos de negócio alterados; ids técnicos (chaves estrangeiras) ficam de fora. */
-function describe(entry: TimelineEntry): string[] {
-  return Object.entries(entry.changes)
-    .filter(([field]) => !field.endsWith('Id') && !field.endsWith('.Id'))
-    .map(([field, value]) => {
-      const label = labelOf(field);
-      if (value && typeof value === 'object' && 'new' in value) {
-        const change = value as { old: unknown; new: unknown };
-        return `${label}: ${show(change.old)} → ${show(change.new)}`;
-      }
-
-      return `${label}: ${show(value)}`;
-    });
-}
-
 function lines(entry: TimelineEntry): string[] {
-  const all = describe(entry);
+  const all = describeChanges(entry);
   return props.compact && all.length > 3 ? [...all.slice(0, 3), `+ ${all.length - 3} campo(s)`] : all;
-}
-
-function show(value: unknown): string {
-  if (value === null || value === undefined || value === '') return '∅';
-  if (typeof value === 'boolean') return value ? 'sim' : 'não';
-  return typeof value === 'object' ? JSON.stringify(value) : String(value);
 }
 
 function author(entry: TimelineEntry): string {
@@ -96,11 +62,17 @@ function author(entry: TimelineEntry): string {
 }
 
 onMounted(load);
-watch(() => [props.entityType, props.entityId, props.refreshKey], load);
+watch(() => [props.entityType, props.entityId, props.refreshKey, props.page, props.pageSize, JSON.stringify(props.filters ?? {})], load);
 </script>
 
 <template>
-  <StateBlock :loading="loading && !data" :error="error" :empty="data?.length === 0" empty-text="Nenhuma alteração registrada." @retry="load">
+  <StateBlock
+    :loading="loading && !data"
+    :error="error"
+    :empty="data?.length === 0"
+    :empty-text="filters && Object.values(filters).some(Boolean) ? 'Nenhum registro com esses filtros.' : 'Nenhuma alteração registrada.'"
+    @retry="load"
+  >
     <ol class="timeline">
       <li v-for="entry in data ?? []" :key="entry.id">
         <div class="row">
@@ -117,6 +89,7 @@ watch(() => [props.entityType, props.entityId, props.refreshKey], load);
 </template>
 
 <style scoped>
+
 .timeline {
   list-style: none;
   margin: 0;

@@ -4,6 +4,7 @@ import { nullable, nullableNumber } from './common.contract-mapper.js';
 import {
   approvalStatusEnum,
   commodityEnum,
+  complianceStatusEnum,
   confirmationStatusEnum,
   optionKindEnum,
   orderTypeEnum,
@@ -22,11 +23,16 @@ export interface ContractOrderTerms {
   premium?: number;
   tradeDate: string;
   notes?: string;
+  commodity?: string;
+  coveredSale?: boolean;
+  justification?: string;
 }
 
 export interface ContractOrder {
   id: string;
-  mandateId: string;
+  code: string;
+  mandateId?: string;
+  mandateCode?: string;
   mandateTitle: string;
   counterpartyId: string;
   counterpartyName: string;
@@ -41,11 +47,18 @@ export interface ContractOrder {
   confirmedOn?: string;
   confirmationNote?: string;
   confirmationOverdue: boolean;
+  confirmationBy?: string;
+  compliance: { status: string; reason: string } | null;
+  linkedAfterExecution: boolean;
+  exceedsMandate: boolean;
+  deviationNote?: string;
 }
 
 export const toOrderDto = (o: ContractOrder): OrderDto => ({
   id: o.id,
-  mandateId: o.mandateId,
+  code: o.code,
+  mandateId: nullable(o.mandateId),
+  mandateCode: nullable(o.mandateCode),
   mandateTitle: o.mandateTitle,
   counterpartyId: o.counterpartyId,
   counterpartyName: o.counterpartyName,
@@ -62,6 +75,7 @@ export const toOrderDto = (o: ContractOrder): OrderDto => ({
     premium: nullableNumber(o.terms.premium),
     tradeDate: o.terms.tradeDate,
     notes: nullable(o.terms.notes),
+    coveredSale: o.terms.coveredSale ?? false,
   },
   approval: approvalStatusEnum.fromContractRequired(o.approval),
   requestedBy: o.requestedBy,
@@ -72,6 +86,14 @@ export const toOrderDto = (o: ContractOrder): OrderDto => ({
   confirmedOn: nullable(o.confirmedOn),
   confirmationNote: nullable(o.confirmationNote),
   confirmationOverdue: o.confirmationOverdue,
+  confirmationBy: nullable(o.confirmationBy),
+  compliance: {
+    status: complianceStatusEnum.fromContract(o.compliance?.status ?? '') === 'Outside' ? 'Outside' : 'Within',
+    reason: o.compliance?.reason ?? '',
+  },
+  linkedAfterExecution: o.linkedAfterExecution,
+  exceedsMandate: o.exceedsMandate,
+  deviationNote: nullable(o.deviationNote),
 });
 
 export const toContractOrderTerms = (t: OrderTermsInput) => ({
@@ -79,4 +101,5 @@ export const toContractOrderTerms = (t: OrderTermsInput) => ({
   type: orderTypeEnum.toContract(t.type),
   direction: tradeDirectionEnum.toContract(t.direction),
   optionKind: optionKindEnum.toContract(t.optionKind),
+  commodity: commodityEnum.toContract(t.commodity),
 });

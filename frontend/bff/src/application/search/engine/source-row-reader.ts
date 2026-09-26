@@ -55,6 +55,8 @@ export class SourceRowReader {
             mandateId: pushdown.mandateId ?? null,
             approval: (pushdown.approval as ApprovalStatus | undefined) ?? null,
             confirmation: (pushdown.confirmation as ConfirmationStatus | undefined) ?? null,
+            withoutMandate: false,
+            onlyOutside: false,
             page,
           }),
         );

@@ -49,6 +49,8 @@ export interface MandateTerms {
 
 export interface Mandate {
   id: string;
+  /** MD-01 */
+  code: string;
   policyId: string;
   policyCode: string;
   policyVersion: string;

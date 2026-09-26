@@ -37,6 +37,7 @@ message Counterparty {
   bool is_homologated = 7;
   optional double notional_limit_usd = 8;
   optional double mtm_limit_usd = 9;
+  string code = 10; // CP-01
 }
 
 message CounterpartyInput {

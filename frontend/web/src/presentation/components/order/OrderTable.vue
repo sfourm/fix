@@ -9,13 +9,16 @@ import {
   optionKindLabel,
   orderTypeLabel,
 } from '@/domain/labels';
-import type { Order } from '@/domain/order';
+import { orderStamps, type Order } from '@/domain/order';
 import { formatDate, formatNumber, formatUsd } from '../../composables/format';
 import StatusBadge from '../StatusBadge.vue';
 import { paths } from '../../paths';
 
-/** policyId: as boletas sempre são abertas dentro da política (cadeia 1:N). */
-const props = defineProps<{ orders: Order[]; policyId: string; showMandate?: boolean }>();
+/**
+ * policyId: boletas com mandato abrem dentro da política (cadeia 1:N); sem mandato, na página de exceções.
+ * Carimbos de desvio (sem mandato, a posteriori, estouro, FORA) ficam sempre à vista (FIX2 · I-01).
+ */
+const props = defineProps<{ orders: Order[]; policyId?: string; showMandate?: boolean }>();
 const router = useRouter();
 
 const volume = (o: Order) => (o.terms.type === 'Ndf' ? formatUsd(o.terms.notionalUsd) : `${formatNumber(o.terms.lots)} lotes`);
@@ -26,7 +29,8 @@ const volume = (o: Order) => (o.terms.type === 'Ndf' ? formatUsd(o.terms.notiona
     <table v-columns="'orders'" class="table">
       <thead>
         <tr>
-          <th>Trade</th>
+          <th>Boleta</th>
+          <th>Operação</th>
           <th v-if="showMandate">Mandato</th>
           <th>Instrumento</th>
           <th>Tela</th>
@@ -34,16 +38,26 @@ const volume = (o: Order) => (o.terms.type === 'Ndf' ? formatUsd(o.terms.notiona
           <th>Preço</th>
           <th>Contraparte</th>
           <th>Aprovação</th>
-          <th>Confirmation</th>
+          <th>Confirmação</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="o in orders" :key="o.id" class="clickable" @click="router.push(paths.order(props.policyId, o.mandateId, o.id))">
+        <tr v-for="o in orders" :key="o.id" class="clickable" @click="router.push(paths.orderOf(o, props.policyId))">
+          <td>
+            <strong class="num">{{ o.code }}</strong>
+            <div class="stamps">
+              <span v-for="s in orderStamps(o)" :key="s.label" class="badge" :class="`badge-${s.tone}`" :title="o.compliance.reason">{{ s.label }}</span>
+            </div>
+          </td>
           <td class="num">{{ formatDate(o.terms.tradeDate) }}</td>
-          <td v-if="showMandate" class="small">{{ o.mandateTitle }}</td>
+          <td v-if="showMandate" class="small">
+            <template v-if="o.mandateCode">{{ o.mandateCode }} · {{ o.mandateTitle }}</template>
+            <span v-else class="muted">—</span>
+          </td>
           <td>
             <strong>{{ directionLabel[o.terms.direction] }} {{ orderTypeLabel[o.terms.type] }}</strong>
             <span v-if="o.terms.optionKind" class="muted"> {{ optionKindLabel[o.terms.optionKind] }}</span>
+            <span v-if="o.terms.coveredSale" class="muted small"> · coberta</span>
           </td>
           <td>{{ o.terms.tenor }}</td>
           <td class="num">{{ volume(o) }}</td>
@@ -62,3 +76,16 @@ const volume = (o: Order) => (o.terms.type === 'Ndf' ? formatUsd(o.terms.notiona
     </table>
   </div>
 </template>
+
+<style scoped>
+.stamps {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 3px;
+}
+
+.stamps:empty {
+  display: none;
+}
+</style>

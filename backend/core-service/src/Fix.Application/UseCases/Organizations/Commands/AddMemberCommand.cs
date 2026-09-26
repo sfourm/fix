@@ -10,7 +10,7 @@ namespace Fix.Application.Organizations.Commands;
 /// Adiciona um membro como user (na organização FIX, como administrador interno). RuleCode opcional: código de uma
 /// alçada personalizada da organização a atribuir já na entrada (vazio ou "user" = sem alçada).
 /// </summary>
-[RequireRole(RoleCodes.EditOrganization)]
+[RequireRole(RoleCodes.CreateUser)]
 public sealed record AddMemberCommand(Guid UserId, Guid OrganizationId, string Email, string? RuleCode, Desk? Desk)
     : ICommand<Guid>, IOrganizationRequest;
 

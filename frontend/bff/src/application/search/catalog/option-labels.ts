@@ -14,7 +14,7 @@ export const optionLabels = {
     Soybean: 'Soja',
   }),
   approval: options({ PendingApproval: 'Pendente', Approved: 'Aprovada', Rejected: 'Rejeitada' }),
-  confirmation: options({ Pending: 'Pendente', Confirmed: 'Confirmado', Divergent: 'Divergente', Refused: 'Recusado' }),
+  confirmation: options({ Pending: 'Pendente', Confirmed: 'Conforme', Divergent: 'Divergente', Refused: 'Recusada' }),
   orderType: options({ Futures: 'Futuro', Option: 'Opção', Ndf: 'NDF' }),
   direction: options({ Buy: 'Compra', Sell: 'Venda' }),
   optionKind: options({ Call: 'Call', Put: 'Put' }),

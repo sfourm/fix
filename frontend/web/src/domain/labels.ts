@@ -143,10 +143,10 @@ export const approvalTone: Record<ApprovalStatus, Tone> = {
 };
 
 export const confirmationLabel: Record<ConfirmationStatus, string> = {
-  Pending: 'Confirmation pendente',
-  Confirmed: 'Confirmado',
+  Pending: 'Pendente',
+  Confirmed: 'Conforme',
   Divergent: 'Divergente',
-  Refused: 'Recusado',
+  Refused: 'Recusada',
 };
 
 export const confirmationTone: Record<ConfirmationStatus, Tone> = {

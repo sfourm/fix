@@ -1,6 +1,6 @@
 namespace Fix.Application.Policies.Dtos;
 
-/// <summary>Parâmetros quantitativos da política (percentuais em %).</summary>
+/// <summary>Parâmetros quantitativos da política (percentuais em %), no modelo FIX2.</summary>
 public sealed record PolicyLimitsDto(
     int HedgeHorizonYears,
     decimal AbsoluteCeilingPct,
@@ -12,4 +12,19 @@ public sealed record PolicyLimitsDto(
     decimal FinancialConcentrationMaxPct,
     int LogisticsDeadlineMonths,
     decimal FreightCeilingPct,
-    decimal CoveredCallMaxPct);
+    decimal CoveredCallMaxPct,
+    decimal Contingency1MonthPct,
+    decimal Contingency6MonthsPct,
+    decimal Contingency12MonthsPct,
+    decimal Contingency24MonthsPct,
+    decimal Contingency36MonthsPct,
+    decimal BuybackTriggerPct,
+    int BuybackDeadlineBusinessDays,
+    decimal StressSigmas,
+    int StressDays,
+    int PricingHotPercentile,
+    int PricingColdPercentile,
+    decimal MixShiftMaxPp,
+    int ConfirmationDeadlineBusinessDays,
+    int RegistrationDeadlineDays,
+    int DeviationReportHours);

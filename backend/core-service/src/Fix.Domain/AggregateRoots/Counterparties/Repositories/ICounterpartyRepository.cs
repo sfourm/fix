@@ -13,6 +13,9 @@ public interface ICounterpartyRepository
     /// <summary>Quantidade de boletas que usam a contraparte (impede a exclusão).</summary>
     Task<int> CountUsagesAsync(Guid counterpartyId, CancellationToken cancellationToken);
 
+    /// <summary>Próximo número sequencial de contraparte da organização (CP-01...).</summary>
+    Task<int> NextNumberAsync(CancellationToken cancellationToken);
+
     void Add(Counterparty counterparty);
 
     void Remove(Counterparty counterparty);

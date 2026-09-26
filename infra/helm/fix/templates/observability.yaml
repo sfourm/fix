@@ -284,7 +284,7 @@ spec:
           requests:
             storage: {{ $o.prometheus.storage }}
 ---
-# ---------- Grafana (provisionamento em grafana-provisioning.yaml) ----------
+# ---------- Grafana (datasources em grafana-provisioning.yaml; dashboards semeados pela API no Job abaixo) ----------
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -366,13 +366,9 @@ spec:
           volumeMounts:
             - { name: data, mountPath: /var/lib/grafana }
             - { name: provisioning, mountPath: /etc/grafana/provisioning/datasources/datasources.yaml, subPath: datasources.yaml }
-            - { name: provisioning, mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml, subPath: dashboards.yaml }
-            - { name: dashboards, mountPath: /etc/grafana/dashboards }
       volumes:
         - name: provisioning
           configMap: { name: {{ $grafana }}-provisioning }
-        - name: dashboards
-          configMap: { name: {{ $grafana }}-dashboards }
   volumeClaimTemplates:
     - metadata:
         name: data

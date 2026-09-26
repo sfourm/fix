@@ -15,9 +15,10 @@ public sealed class Mandate : AggregateRoot, IOrganizationScoped
     {
     }
 
-    private Mandate(Guid organizationId, Guid policyId, Guid axisId, MandateType type, Guid issuedBy)
+    private Mandate(Guid organizationId, int number, Guid policyId, Guid axisId, MandateType type, Guid issuedBy)
     {
         OrganizationId = organizationId;
+        Number = number;
         PolicyId = policyId;
         AxisId = axisId;
         Type = type;
@@ -25,6 +26,11 @@ public sealed class Mandate : AggregateRoot, IOrganizationScoped
     }
 
     public Guid OrganizationId { get; private set; }
+
+    /// <summary>Sequencial na organização; o código legível é MD-01 (I-10).</summary>
+    public int Number { get; private set; }
+
+    public string Code => EntityCodes.Mandate(Number);
 
     public Guid PolicyId { get; private set; }
 
@@ -70,6 +76,7 @@ public sealed class Mandate : AggregateRoot, IOrganizationScoped
     public bool AcceptsOrders => Status == MandateStatus.Active;
 
     public static Mandate Issue(
+        int number,
         Policy policy,
         Guid axisId,
         MandateType type,
@@ -84,7 +91,7 @@ public sealed class Mandate : AggregateRoot, IOrganizationScoped
             throw new DomainException($"O eixo {axis.Code} cobre outro fator de risco; escolha um eixo compatível com o tipo do mandato.");
         }
 
-        var mandate = new Mandate(policy.OrganizationId, policy.Id, axis.Id, type, issuedBy);
+        var mandate = new Mandate(policy.OrganizationId, number, policy.Id, axis.Id, type, issuedBy);
         mandate.Apply(terms, compliance);
 
         // Dentro da política e emitido por quem tem alçada: entra ativo. Senão, vai para a fila de aprovação.

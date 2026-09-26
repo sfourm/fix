@@ -23,6 +23,7 @@ internal sealed class CounterpartyService(ICounterpartyRepository counterpartyRe
 
         var counterparty = Counterparty.Create(
             command.OrganizationId,
+            await counterpartyRepository.NextNumberAsync(cancellationToken),
             name,
             command.Type,
             command.Document,

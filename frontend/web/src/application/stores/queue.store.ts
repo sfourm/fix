@@ -4,7 +4,7 @@ import { Permission } from '@/domain/permissions';
 import { useApi } from '../api-provider';
 import { useOrganizationStore } from './organization.store';
 
-/** Contadores das filas de trabalho exibidos no menu (aprovações e confirmations em aberto). */
+/** Contadores das filas de trabalho exibidos no menu (aprovações e confirmações em aberto). */
 export const useQueueStore = defineStore('queue', () => {
   const pendingApprovals = ref(0);
   const openConfirmations = ref(0);

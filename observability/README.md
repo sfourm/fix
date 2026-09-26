@@ -34,7 +34,8 @@ docker compose ps
 ### 2. Acessar as Interfaces
 - **Grafana**: [http://localhost:3001](http://localhost:3001) (usuário: `admin`, senha: `admin`)
   - O datasource **Prometheus** e **Jaeger** já vêm pré-configurados!
-  - Dashboards provisionados na pasta `FIX`:
+  - Dashboards na pasta `FIX`, **editáveis e salvos pela própria interface** (semeados pela API pelo serviço
+    `grafana-seed`, que só cria o que ainda não existe; edições feitas no Grafana ficam):
     - **Fix Platform - Observabilidade & Telemetria**: visão geral dos serviços e do coletor.
     - **Fix Platform - Requests, gRPC e banco**: requests do BFF e o caminho de cada uma até o banco (detalhes abaixo).
 - **Jaeger UI**: [http://localhost:16686](http://localhost:16686)
@@ -96,6 +97,9 @@ gRPC e operação/tabela SQL. Assim o mesmo trace alimenta métricas de todas as
 - Filtros: rota do BFF, serviço gRPC, tabela e Trace ID.
 - **Exemplars**: o Prometheus roda com `--enable-feature=exemplar-storage` e o datasource liga `trace_id` ao Jaeger; os pontos nos
   gráficos de latência abrem o trace correspondente.
-- O dashboard é gerado a partir de queries consistentes; ao editar pelo Grafana, exporte o JSON para
-  `grafana/dashboards/fix-requests-traces.json` (o provisionamento relê a pasta a cada 10 s).
+- Editar e salvar direto no Grafana funciona (fica no banco dele). Os JSON de `grafana/dashboards/` são a **semente**
+  de instalações novas: para levar uma edição ao repositório, exporte o JSON (Compartilhar → Exportar) e salve lá.
+  Para reaplicar a semente num Grafana existente, apague o dashboard e rode `docker compose up grafana-seed`.
+- Por que não provisionamento por arquivo: desde o Grafana 12 a interface trata dashboard provisionado como
+  "gerenciado" e, ao salvar, só oferece baixar o JSON (mesmo com `allowUiUpdates`).
 - O `prometheus.yml` usa `honor_labels: true` no scrape do coletor: o label `job` de cada série é o serviço (`fix-bff`, `fix-backend`).

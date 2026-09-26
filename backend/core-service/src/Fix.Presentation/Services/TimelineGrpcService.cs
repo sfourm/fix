@@ -14,16 +14,30 @@ internal sealed class TimelineGrpcService(
 {
     public override async Task<GetTimelineResponse> GetTimeline(GetTimelineRequest request, ServerCallContext context)
     {
-        var entries = await validation.RunAsync(
+        var (page, pageSize) = request.Page.ToPaging();
+        var result = await validation.RunAsync(
             new GetTimelineQuery(
                 request.Context.ToUserId(),
                 request.Context.ToOrganizationId(),
                 request.HasEntityType ? request.EntityType : null,
                 request.HasEntityId ? request.EntityId.ToOptionalGuid("entity_id") : null,
-                request.Limit),
+                request.Limit,
+                Action: request.Action.ToOptionalString(request.HasAction),
+                AuthorId: request.HasAuthorId ? request.AuthorId.ToOptionalGuid("author_id") : null,
+                From: request.HasOccurredFrom ? request.OccurredFrom.ToOptionalMoment("occurred_from") : null,
+                To: request.HasOccurredTo ? request.OccurredTo.ToOptionalMoment("occurred_to") : null,
+                Search: request.Search.ToOptionalString(request.HasSearch),
+                Page: page,
+                PageSize: pageSize),
             timelineService.GetTimelineAsync,
             context.CancellationToken);
 
-        return new GetTimelineResponse { Entries = { entries.Select(e => e.ToContract()) } };
+        var response = new GetTimelineResponse { Entries = { result.Entries.Select(e => e.ToContract()) } };
+        if (result.TotalCount is { } total)
+        {
+            response.Page = new PageInfo { Page = result.Page, PageSize = result.PageSize, TotalCount = total };
+        }
+
+        return response;
     }
 }

@@ -24,12 +24,12 @@ const widget = (title: string, type: WidgetType, width: number, height: number, 
   colors: { mode, palette: [] },
 });
 
-/** Visão geral do processo FIX: autorizações, execução e confirmations. */
+/** Visão geral do processo FIX: autorizações, execução e confirmações. */
 const fixOverview: WidgetDefinition[] = [
   widget('Mandatos ativos', 'Kpi', 3, 140, query({ source: 'mandates', criteria: [{ field: 'status', operator: 'eq', value: 'Active' }] })),
   widget('Boletas aguardando aprovação', 'Kpi', 3, 140, query({ source: 'orders', criteria: [{ field: 'approval', operator: 'eq', value: 'PendingApproval' }] })),
   widget(
-    'Confirmations em aberto',
+    'Confirmações em aberto',
     'Kpi',
     3,
     140,

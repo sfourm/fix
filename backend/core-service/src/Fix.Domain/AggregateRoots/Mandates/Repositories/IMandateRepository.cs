@@ -19,6 +19,9 @@ public interface IMandateRepository
         Guid? exceptOrderId,
         CancellationToken cancellationToken);
 
+    /// <summary>Próximo número sequencial de mandato da organização (MD-01...).</summary>
+    Task<int> NextNumberAsync(CancellationToken cancellationToken);
+
     void Add(Mandate mandate);
 
     void Remove(Mandate mandate);

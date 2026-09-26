@@ -112,12 +112,29 @@ function move(parentGroupId: string) {
 // ---------- Alçadas ----------
 const assigned = computed(() => new Set(group.value?.rules ?? []));
 
+/** Só os cargos do grupo aparecem; os de fora só no seletor de "Atribuir cargo". */
+const groupRules = computed(() => ruleStore.alcadas.filter((r) => assigned.value.has(r.code)));
+const unassignedRules = computed(() => ruleStore.alcadas.filter((r) => !assigned.value.has(r.code)));
+const addingRule = ref(false);
+const newRule = ref('');
+
+function openAddRule() {
+  newRule.value = unassignedRules.value[0]?.code ?? '';
+  addingRule.value = true;
+}
+
+async function addRule() {
+  if (!newRule.value) return;
+  addingRule.value = false;
+  await toggleAlcada(newRule.value, true);
+}
+
 function toggleAlcada(code: string, on: boolean) {
   const next = new Set(assigned.value);
   if (on) next.add(code);
   else next.delete(code);
   const name = ruleStore.nameOf(code);
-  run(() => api.organizations.setGroupRules(props.groupId, [...next]), on ? `Cargo ${name} atribuído ao grupo.` : `Cargo ${name} retirado do grupo.`);
+  return run(() => api.organizations.setGroupRules(props.groupId, [...next]), on ? `Cargo ${name} atribuído ao grupo.` : `Cargo ${name} retirado do grupo.`);
 }
 
 /** Roles que o grupo concede (união das alçadas), agrupadas por área para leitura. */
@@ -132,12 +149,30 @@ const isDecision = (code: string) => (DECISION_ROLES as string[]).includes(code)
 const inGroup = computed(() => members.value.filter((m) => group.value?.memberIds.includes(m.id)));
 const available = computed(() => members.value.filter((m) => !group.value?.memberIds.includes(m.id)));
 const newMember = ref('');
+const addingMember = ref(false);
+
+function openAddMember() {
+  newMember.value = available.value[0]?.id ?? '';
+  addingMember.value = true;
+}
 
 function addMember() {
   const member = members.value.find((m) => m.id === newMember.value);
   if (!member) return;
   newMember.value = '';
+  addingMember.value = false;
   run(() => api.organizations.addGroupMember(props.groupId, member.id), `${member.fullName} entrou no grupo.`);
+}
+
+async function removeRule(code: string) {
+  const name = ruleStore.nameOf(code);
+  const ok = await confirm({
+    title: 'Retirar cargo',
+    message: `Os membros do grupo perdem as regras do cargo ${name} (a menos que o recebam por outro grupo ou diretamente).`,
+    confirmLabel: 'Retirar',
+    danger: true,
+  });
+  if (ok) await toggleAlcada(code, false);
 }
 
 async function removeMember(member: Member) {
@@ -201,12 +236,12 @@ onMounted(load);
         <div class="kpi">
           <span>Membros</span>
           <strong>{{ inGroup.length }}</strong>
-          <small>{{ available.length }} fora do grupo</small>
+          <small>membro(s) no grupo</small>
         </div>
         <div class="kpi">
           <span>Cargos</span>
           <strong>{{ assigned.size }}</strong>
-          <small>de {{ ruleStore.alcadas.length }} da organização</small>
+          <small>cargo(s) atribuído(s) ao grupo</small>
         </div>
         <div class="kpi">
           <span>Regras efetivas</span>
@@ -224,45 +259,35 @@ onMounted(load);
         <section class="card">
           <header class="card-header">
             <h2>Cargos do grupo</h2>
-            <RouterLink to="/access" class="small">gerir cargos →</RouterLink>
+            <button v-if="canEdit && !organization.isInternalOrganization && unassignedRules.length" class="btn btn-primary btn-sm" :disabled="busy" @click="openAddRule">
+              + Atribuir cargo
+            </button>
           </header>
           <div class="card-body stack" style="gap: 8px">
             <p v-if="organization.isInternalOrganization" class="muted" style="margin: 0">A organização FIX não usa cargos: os papéis internos são fixos.</p>
             <p v-else-if="!ruleStore.alcadas.length" class="muted" style="margin: 0">
               A organização ainda não tem cargos. <RouterLink to="/access">Crie o primeiro</RouterLink> a partir das regras disponíveis.
             </p>
-            <label v-for="rule in ruleStore.alcadas" :key="rule.code" class="alcada" :class="{ on: assigned.has(rule.code) }">
-              <input
-                type="checkbox"
-                class="switch"
-                :checked="assigned.has(rule.code)"
-                :disabled="!canEdit || busy"
-                :aria-label="rule.name"
-                @change="toggleAlcada(rule.code, ($event.target as HTMLInputElement).checked)"
-              />
+            <p v-else-if="!groupRules.length" class="muted" style="margin: 0">Nenhum cargo atribuído: os membros ficam só com a base (leitura).</p>
+            <div v-for="rule in groupRules" :key="rule.code" class="alcada on">
               <span class="alcada-body">
                 <strong>{{ rule.name }}</strong>
                 <span class="roles">
                   <span v-for="code in rule.roles" :key="code" class="badge" :class="{ 'badge-warning': isDecision(code) }" :title="roleStore.describe(code)">{{ code }}</span>
                 </span>
               </span>
-            </label>
+              <button v-if="canEdit" class="btn btn-sm" :disabled="busy" @click="removeRule(rule.code)">Retirar</button>
+            </div>
+            <RouterLink to="/access" class="small manage">Gerir cargos e regras →</RouterLink>
           </div>
         </section>
 
         <section class="card">
           <header class="card-header">
             <h2>Membros</h2>
-            <span class="badge">{{ inGroup.length }}</span>
+            <button v-if="canEdit && available.length" class="btn btn-primary btn-sm" :disabled="busy" @click="openAddMember">+ Adicionar membro</button>
           </header>
           <div class="card-body stack" style="gap: 10px">
-            <form v-if="canEdit && available.length" class="add" @submit.prevent="addMember">
-              <select v-model="newMember" class="input" aria-label="Membro a adicionar">
-                <option value="" disabled>Adicionar membro ao grupo…</option>
-                <option v-for="m in available" :key="m.id" :value="m.id">{{ m.fullName }} · {{ m.email }}</option>
-              </select>
-              <button class="btn btn-primary" type="submit" :disabled="!newMember || busy">Adicionar</button>
-            </form>
             <p v-if="!inGroup.length" class="muted" style="margin: 0">Nenhum membro neste grupo.</p>
             <ul class="people">
               <li v-for="m in inGroup" :key="m.id">
@@ -325,6 +350,37 @@ onMounted(load);
     </template>
   </StateBlock>
 
+  <BaseModal v-if="addingRule" title="Atribuir cargo ao grupo" width="460px" @close="addingRule = false">
+    <form id="add-rule-form" class="stack" @submit.prevent="addRule">
+      <p class="muted small" style="margin: 0">Todos os membros do grupo recebem as regras do cargo.</p>
+      <div class="field">
+        <label for="add-rule">Cargo</label>
+        <select id="add-rule" v-model="newRule" class="input" required>
+          <option v-for="rule in unassignedRules" :key="rule.code" :value="rule.code">{{ rule.name }} ({{ rule.roles.length }} regras)</option>
+        </select>
+      </div>
+    </form>
+    <template #footer>
+      <button class="btn" type="button" @click="addingRule = false">Cancelar</button>
+      <button class="btn btn-primary" type="submit" form="add-rule-form" :disabled="!newRule || busy">Atribuir</button>
+    </template>
+  </BaseModal>
+
+  <BaseModal v-if="addingMember" title="Adicionar membro ao grupo" width="460px" @close="addingMember = false">
+    <form id="add-member-form" class="stack" @submit.prevent="addMember">
+      <div class="field">
+        <label for="add-member">Membro</label>
+        <select id="add-member" v-model="newMember" class="input" required>
+          <option v-for="m in available" :key="m.id" :value="m.id">{{ m.fullName }} · {{ m.email }}</option>
+        </select>
+      </div>
+    </form>
+    <template #footer>
+      <button class="btn" type="button" @click="addingMember = false">Cancelar</button>
+      <button class="btn btn-primary" type="submit" form="add-member-form" :disabled="!newMember || busy">Adicionar</button>
+    </template>
+  </BaseModal>
+
   <BaseModal v-if="renaming !== null" title="Renomear grupo" width="420px" @close="renaming = null">
     <form id="rename-form" class="stack" @submit.prevent="rename">
       <div class="field">
@@ -360,7 +416,6 @@ onMounted(load);
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  cursor: pointer;
   transition:
     border-color 0.15s,
     background 0.15s;
@@ -381,9 +436,15 @@ onMounted(load);
 
 .alcada-body {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+}
+
+.manage {
+  align-self: flex-start;
+  margin-top: 4px;
 }
 
 .roles {

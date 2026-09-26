@@ -7,7 +7,6 @@ internal sealed class RegisterOrderValidator : AbstractValidator<RegisterOrderCo
 {
     public RegisterOrderValidator()
     {
-        RuleFor(x => x.MandateId).NotEmpty().WithMessage("Vincule a boleta a um mandato.");
         RuleFor(x => x.CounterpartyId).NotEmpty();
         RuleFor(x => x.Terms).NotNull().SetValidator(new OrderTermsValidator());
     }

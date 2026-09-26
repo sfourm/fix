@@ -73,6 +73,7 @@ jobs:
         run: |
           mkdir -p infra/helm/fix/files/dashboards
           cp observability/grafana/dashboards/*.json infra/helm/fix/files/dashboards/
+          cp observability/grafana/seed-dashboards.sh infra/helm/fix/files/
           helm lint infra/helm/fix
           helm template fix infra/helm/fix --set ingress.host=fix.example.com --set ingress.tls.enabled=true > /dev/null
           helm template fix infra/helm/fix --set observability.enabled=true --set observability.grafana.host=grafana.example.com \

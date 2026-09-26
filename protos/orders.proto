@@ -6,6 +6,7 @@ option csharp_namespace = "Fix.Contracts.V1";
 
 import "google/protobuf/empty.proto";
 import "common.proto";
+import "mandates.proto";
 
 // Boletas de hedge (orders). Exige context.user_id e context.organization_id.
 // Toda boleta consome um mandato ATIVO; contraparte precisa estar homologada.
@@ -14,6 +15,8 @@ import "common.proto";
 service OrderService {
   rpc RegisterOrder(RegisterOrderRequest) returns (Order);
   rpc UpdateOrder(UpdateOrderRequest) returns (Order);
+  // Vínculo a posteriori de boleta sem mandato (carimbo permanente, exige justificativa).
+  rpc LinkOrderMandate(LinkOrderMandateRequest) returns (Order);
   rpc ApproveOrder(OrderDecisionRequest) returns (Order);
   rpc RejectOrder(OrderDecisionRequest) returns (Order);
   rpc DeleteOrder(OrderIdRequest) returns (google.protobuf.Empty);
@@ -71,11 +74,14 @@ message OrderTerms {
   optional double premium = 9;
   string trade_date = 10;
   optional string notes = 11;
+  Commodity commodity = 12;             // só sem mandato (com mandato vale a dele)
+  bool covered_sale = 13;               // venda de opção coberta (a descoberta é vedada)
+  optional string justification = 14;   // obrigatória quando há desvio (FIX2 · I-01)
 }
 
 message Order {
   string id = 1;
-  string mandate_id = 2;
+  optional string mandate_id = 2; // ausente = boleta sem mandato (desvio sinalizado)
   string mandate_title = 3;
   string counterparty_id = 4;
   string counterparty_name = 5;
@@ -90,11 +96,18 @@ message Order {
   optional string confirmed_on = 14;
   optional string confirmation_note = 15;
   bool confirmation_overdue = 16;
+  string code = 17;                     // HX-0001
+  optional string mandate_code = 18;    // MD-01
+  Compliance compliance = 19;           // enquadramento calculado da boleta
+  bool linked_after_execution = 20;     // vínculo a posteriori
+  bool exceeds_mandate = 21;            // estourou o saldo do mandato
+  optional string deviation_note = 22;  // justificativa do desvio
+  optional string confirmation_by = 23; // middle office que registrou o confirmation
 }
 
 message RegisterOrderRequest {
   RequestContext context = 1;
-  string mandate_id = 2;
+  optional string mandate_id = 2; // ausente = sem mandato (exige justificativa nos termos)
   string counterparty_id = 3;
   OrderTerms terms = 4;
 }
@@ -111,6 +124,13 @@ message OrderDecisionRequest {
   RequestContext context = 1;
   string id = 2;
   optional string note = 3;
+}
+
+message LinkOrderMandateRequest {
+  RequestContext context = 1;
+  string id = 2;
+  string mandate_id = 3;
+  string justification = 4;
 }
 
 message ConfirmOrderRequest {
@@ -130,6 +150,8 @@ message ListOrdersRequest {
   ApprovalStatus approval = 3;         // UNSPECIFIED = todos
   ConfirmationStatus confirmation = 4; // UNSPECIFIED = todos
   PageRequest page = 5;
+  bool without_mandate = 6;            // só boletas sem mandato
+  bool only_outside = 7;               // só boletas FORA do enquadramento
 }
 
 message ListOrdersResponse {

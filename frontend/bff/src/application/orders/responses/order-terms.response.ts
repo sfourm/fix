@@ -18,4 +18,6 @@ export interface OrderTermsResponse {
   premium: number | null;
   tradeDate: string;
   notes: string | null;
+  /** Venda de opção coberta. */
+  coveredSale: boolean;
 }

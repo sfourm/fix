@@ -1,3 +1,4 @@
+import type { LinkOrderMandateCommand } from '../../../application/orders/commands/link-order-mandate.command.js';
 import type { ApproveOrderCommand } from '../../../application/orders/commands/approve-order.command.js';
 import type { ConfirmOrderCommand } from '../../../application/orders/commands/confirm-order.command.js';
 import type { DeleteOrderCommand } from '../../../application/orders/commands/delete-order.command.js';
@@ -24,11 +25,15 @@ export class GrpcOrderGateway implements OrderGateway {
   constructor(private readonly core: CoreClient) {}
 
   register({ context, mandateId, counterpartyId, terms }: RegisterOrderCommand): Promise<OrderDto> {
-    return this.order('RegisterOrder', context, { mandateId, counterpartyId, terms: toContractOrderTerms(terms) });
+    return this.order('RegisterOrder', context, { ...(mandateId ? { mandateId } : {}), counterpartyId, terms: toContractOrderTerms(terms) });
   }
 
   update({ context, id, counterpartyId, terms }: UpdateOrderCommand): Promise<OrderDto> {
     return this.order('UpdateOrder', context, { id, counterpartyId, terms: toContractOrderTerms(terms) });
+  }
+
+  link({ context, id, mandateId, justification }: LinkOrderMandateCommand): Promise<OrderDto> {
+    return this.order('LinkOrderMandate', context, { id, mandateId, justification });
   }
 
   approve({ context, id, note }: ApproveOrderCommand): Promise<OrderDto> {
@@ -63,11 +68,13 @@ export class GrpcOrderGateway implements OrderGateway {
     return this.order('GetOrder', context, { id });
   }
 
-  async list({ context, mandateId, approval, confirmation, page }: ListOrdersQuery): Promise<Page<OrderDto>> {
+  async list({ context, mandateId, approval, confirmation, withoutMandate, onlyOutside, page }: ListOrdersQuery): Promise<Page<OrderDto>> {
     const response = await this.call<{ orders: ContractOrder[]; page: ContractPageInfo | null }>('ListOrders', context, {
       mandateId,
       approval: approvalStatusEnum.toContract(approval),
       confirmation: confirmationStatusEnum.toContract(confirmation),
+      withoutMandate,
+      onlyOutside,
       page: toContractPage(page),
     });
     return toPage(response.orders, response.page, toOrderDto);

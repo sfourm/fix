@@ -5,16 +5,18 @@ import { useApi } from '@/application/api-provider';
 import { useOrganizationStore } from '@/application/stores/organization.store';
 import { policyStatusLabel, policyStatusTone } from '@/domain/labels';
 import { Permission } from '@/domain/permissions';
-import type { Policy, PolicyVersion } from '@/domain/policy';
+import type { Policy } from '@/domain/policy';
+import type { TimelineEntry } from '@/domain/timeline';
 import { useLoader, useSubmit } from '../../composables/useAsync';
 import { useToast } from '../../composables/useToast';
-import { formatDate, orNull } from '../../composables/format';
+import { formatDate, formatDateTime, orNull } from '../../composables/format';
 import BaseModal from '../../components/BaseModal.vue';
 import PageHeader from '../../components/PageHeader.vue';
 import PaginationBar from '../../components/PaginationBar.vue';
 import StateBlock from '../../components/StateBlock.vue';
 import StatusBadge from '../../components/StatusBadge.vue';
 import PolicyVersionSheet from '../../components/policy/PolicyVersionSheet.vue';
+import { timedVersions, type TimedVersion } from '../../components/policy/policy-changes';
 import { paths } from '../../paths';
 
 const api = useApi();
@@ -27,25 +29,32 @@ const { data, loading, error, load: loadList } = useLoader(() => api.policies.li
 
 /** Detalhe de cada política da página (traz as versões mostradas no card). */
 const details = ref<Record<string, Policy>>({});
+/** Auditoria de cada política: dá o horário das etapas das versões. */
+const audits = ref<Record<string, TimelineEntry[]>>({});
 async function load() {
   await loadList();
   const items = data.value?.items ?? [];
-  const loaded = await Promise.all(items.map((p) => api.policies.get(p.id).catch(() => null)));
+  const [loaded, trails] = await Promise.all([
+    Promise.all(items.map((p) => api.policies.get(p.id).catch(() => null))),
+    Promise.all(items.map((p) => api.timeline.list({ entityType: 'Policy', entityId: p.id, limit: 500 }).catch(() => []))),
+  ]);
   details.value = Object.fromEntries(loaded.filter((p): p is Policy => !!p).map((p) => [p.id, p]));
+  audits.value = Object.fromEntries(items.map((p, i) => [p.id, trails[i] ?? []]));
 }
 
-/** Versões únicas de uma política, cada uma com a última etapa (status e data). */
+/** Versões únicas de uma política, cada uma com a última etapa (status, data e hora). */
 function versionsOf(id: string) {
-  const list = details.value[id]?.versions ?? [];
-  const last = new Map<string, (typeof list)[number]>();
+  const list = timedVersions(details.value[id]?.versions ?? [], audits.value[id]);
+  const last = new Map<string, TimedVersion>();
   list.forEach((v) => last.set(v.version, v));
   // Versões anteriores à atual já foram substituídas (o histórico só grava até a vigência).
   const current = details.value[id]?.version;
   return [...last.values()].map((v) => (v.version !== current && v.status === 'Active' ? { ...v, status: 'Superseded' as const } : v));
 }
 
-const versionTitle = (v: PolicyVersion) =>
-  `${policyStatusLabel[v.status]} · ${formatDate(v.date)}${v.note ? ` · ${v.note}` : ''} — clique para ver as alterações`;
+const when = (v: TimedVersion) => (v.at ? formatDateTime(v.at) : formatDate(v.date));
+const versionTitle = (v: TimedVersion) =>
+  `${policyStatusLabel[v.status]} · ${when(v)}${v.note ? ` · ${v.note}` : ''} — clique para ver as alterações`;
 
 const sheet = ref<{ policyId: string; version: string } | null>(null);
 const sheetPolicy = computed(() => (sheet.value ? details.value[sheet.value.policyId] ?? null : null));
@@ -120,7 +129,7 @@ onMounted(load);
             >
               <span class="vdot" />
               <strong>{{ v.version }}</strong>
-              <span class="vstatus">{{ policyStatusLabel[v.status] }}</span>
+              <span class="vstatus">{{ policyStatusLabel[v.status] }} · {{ when(v) }}</span>
             </button>
             <span v-if="!details[policy.id]" class="muted small">carregando…</span>
           </div>

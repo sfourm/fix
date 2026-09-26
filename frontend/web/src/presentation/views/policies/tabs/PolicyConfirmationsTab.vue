@@ -9,10 +9,10 @@ const overdue = computed(() => work.value?.awaitingConfirmation.filter((o) => o.
 </script>
 
 <template>
-  <div v-if="!work" class="card card-body muted">Carregando confirmations…</div>
+  <div v-if="!work" class="card card-body muted">Carregando confirmações…</div>
   <div v-else class="stack">
     <div class="toolbar">
-      <p class="lead small">Confirmations que precisam chegar e bater com a boleta. Divergências e recusas exigem reconciliação do middle office.</p>
+      <p class="lead small">Confirmações que precisam chegar e bater com a boleta. Divergências e recusas exigem reconciliação do middle office.</p>
       <button class="btn" @click="reloadWork">Atualizar</button>
     </div>
 
@@ -34,7 +34,7 @@ const overdue = computed(() => work.value?.awaitingConfirmation.filter((o) => o.
         </div>
       </header>
       <OrderTable v-if="work.awaitingConfirmation.length" :orders="work.awaitingConfirmation" :policy-id="policy.id" show-mandate />
-      <p v-else class="card-body muted" style="margin: 0">Todos os confirmations foram conferidos.</p>
+      <p v-else class="card-body muted" style="margin: 0">Todas as confirmações foram conferidas.</p>
     </section>
   </div>
 </template>

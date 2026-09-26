@@ -7,6 +7,7 @@ internal static class CounterpartyMapper
 {
     public static CounterpartyDto ToDto(this Counterparty counterparty) => new(
         counterparty.Id,
+        counterparty.Code,
         counterparty.Name.Value,
         counterparty.Type,
         counterparty.Document,

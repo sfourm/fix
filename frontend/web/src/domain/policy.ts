@@ -21,6 +21,22 @@ export interface PolicyLimits {
   logisticsDeadlineMonths: number;
   freightCeilingPct: number;
   coveredCallMaxPct: number;
+  /** Contingência escalonada (% da produção projetada que nunca é vendida nem fixada, por prazo). */
+  contingency1MonthPct: number;
+  contingency6MonthsPct: number;
+  contingency12MonthsPct: number;
+  contingency24MonthsPct: number;
+  contingency36MonthsPct: number;
+  buybackTriggerPct: number;
+  buybackDeadlineBusinessDays: number;
+  stressSigmas: number;
+  stressDays: number;
+  pricingHotPercentile: number;
+  pricingColdPercentile: number;
+  mixShiftMaxPp: number;
+  confirmationDeadlineBusinessDays: number;
+  registrationDeadlineDays: number;
+  deviationReportHours: number;
 }
 
 export interface PolicyAxis {

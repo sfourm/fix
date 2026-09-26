@@ -65,9 +65,24 @@ internal static class PolicyMapper
         limits.FinancialConcentrationMaxPct,
         limits.LogisticsDeadlineMonths,
         limits.FreightCeilingPct,
-        limits.CoveredCallMaxPct);
+        limits.CoveredCallMaxPct,
+        limits.Contingency1MonthPct,
+        limits.Contingency6MonthsPct,
+        limits.Contingency12MonthsPct,
+        limits.Contingency24MonthsPct,
+        limits.Contingency36MonthsPct,
+        limits.BuybackTriggerPct,
+        limits.BuybackDeadlineBusinessDays,
+        limits.StressSigmas,
+        limits.StressDays,
+        limits.PricingHotPercentile,
+        limits.PricingColdPercentile,
+        limits.MixShiftMaxPp,
+        limits.ConfirmationDeadlineBusinessDays,
+        limits.RegistrationDeadlineDays,
+        limits.DeviationReportHours);
 
-    public static PolicyLimits ToDomain(this PolicyLimitsDto limits) => PolicyLimits.Create(
+    public static PolicyLimits ToDomain(this PolicyLimitsDto limits) => PolicyLimits.Create(new PolicyLimitsValues(
         limits.HedgeHorizonYears,
         limits.AbsoluteCeilingPct,
         limits.FxFixedMinPct,
@@ -78,6 +93,21 @@ internal static class PolicyMapper
         limits.FinancialConcentrationMaxPct,
         limits.LogisticsDeadlineMonths,
         limits.FreightCeilingPct,
-        limits.CoveredCallMaxPct);
+        limits.CoveredCallMaxPct,
+        limits.Contingency1MonthPct,
+        limits.Contingency6MonthsPct,
+        limits.Contingency12MonthsPct,
+        limits.Contingency24MonthsPct,
+        limits.Contingency36MonthsPct,
+        limits.BuybackTriggerPct,
+        limits.BuybackDeadlineBusinessDays,
+        limits.StressSigmas,
+        limits.StressDays,
+        limits.PricingHotPercentile,
+        limits.PricingColdPercentile,
+        limits.MixShiftMaxPp,
+        limits.ConfirmationDeadlineBusinessDays,
+        limits.RegistrationDeadlineDays,
+        limits.DeviationReportHours));
 }
 

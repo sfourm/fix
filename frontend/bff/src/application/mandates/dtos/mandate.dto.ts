@@ -5,6 +5,8 @@ import type { MandateType } from '../../../cross-cutting/enums/mandate-type.js';
 
 export interface MandateDto {
   id: string;
+  /** Código legível da organização (MD-01). */
+  code: string;
   policyId: string;
   policyCode: string;
   policyVersion: string;

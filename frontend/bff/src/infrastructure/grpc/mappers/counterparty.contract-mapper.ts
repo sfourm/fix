@@ -5,6 +5,7 @@ import { counterpartyTypeEnum } from './enum.contract-mapper.js';
 
 export interface ContractCounterparty {
   id: string;
+  code: string;
   name: string;
   type: string;
   document?: string;
@@ -17,6 +18,7 @@ export interface ContractCounterparty {
 
 export const toCounterpartyDto = (c: ContractCounterparty): CounterpartyDto => ({
   id: c.id,
+  code: c.code,
   name: c.name,
   type: counterpartyTypeEnum.fromContractRequired(c.type),
   document: nullable(c.document),

@@ -96,14 +96,14 @@ async function decide(note: string | null) {
       <div v-if="work.pendingOrders.length" class="table-wrap">
         <table v-columns="'approvals-orders'" class="table">
           <thead>
-            <tr><th>Boleta</th><th>Mandato</th><th>Volume</th><th>Contraparte</th><th>Trade</th><th /></tr>
+            <tr><th>Boleta</th><th>Mandato</th><th>Volume</th><th>Contraparte</th><th>Operação</th><th /></tr>
           </thead>
           <tbody>
             <tr v-for="o in work.pendingOrders" :key="o.id">
               <td>
-                <RouterLink :to="paths.order(policy.id, o.mandateId, o.id)"><strong>{{ directionLabel[o.terms.direction] }} {{ orderTypeLabel[o.terms.type] }} {{ o.terms.tenor }}</strong></RouterLink>
+                <RouterLink :to="paths.orderOf(o, policy.id)"><span class="muted">{{ o.code }}</span> <strong>{{ directionLabel[o.terms.direction] }} {{ orderTypeLabel[o.terms.type] }} {{ o.terms.tenor }}</strong></RouterLink>
               </td>
-              <td class="small"><RouterLink :to="paths.mandate(policy.id, o.mandateId)">{{ o.mandateTitle }}</RouterLink></td>
+              <td class="small"><RouterLink v-if="o.mandateId" :to="paths.mandate(policy.id, o.mandateId)">{{ o.mandateCode }} · {{ o.mandateTitle }}</RouterLink></td>
               <td class="num">{{ o.terms.type === 'Ndf' ? formatUsd(o.terms.notionalUsd) : `${formatNumber(o.terms.lots)} lotes` }}</td>
               <td>{{ o.counterpartyName }}</td>
               <td class="num">{{ formatDate(o.terms.tradeDate) }}</td>

@@ -51,7 +51,7 @@ services:
 
   # Grafana: visualização unificada de métricas e traces
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.2.2
     container_name: fix-grafana
     restart: unless-stopped
     environment:
@@ -59,14 +59,34 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
+      # Só as fontes de dados são provisionadas; os dashboards entram pela API (grafana-seed) para serem editáveis.
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - fix-grafana-data:/var/lib/grafana
     ports:
       - "3001:3000"   # Grafana UI na porta 3001 (evita conflito com o BFF na 3000)
     depends_on:
       - prometheus
       - jaeger
+    networks:
+      - fix-network
+
+  # Semeia os dashboards de grafana/dashboards pela API e termina. Só cria o que não existe: o que foi salvo pela
+  # interface fica. Para levar uma edição ao repositório, exporte o JSON para grafana/dashboards/.
+  grafana-seed:
+    image: curlimages/curl:8.17.0
+    container_name: fix-grafana-seed
+    restart: "no"
+    entrypoint: ["sh", "/seed-dashboards.sh"]
+    environment:
+      - GRAFANA_URL=http://grafana:3000
+      - GRAFANA_USER=admin
+      - GRAFANA_PASSWORD=admin
+      - DASHBOARDS_DIR=/dashboards
+    volumes:
+      - ./grafana/seed-dashboards.sh:/seed-dashboards.sh:ro
+      - ./grafana/dashboards:/dashboards:ro
+    depends_on:
+      - grafana
     networks:
       - fix-network
 

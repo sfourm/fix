@@ -32,7 +32,13 @@ public static class RoleCodes
     // Setup
     public const string ViewCounterparties = "view_counterparties";
     public const string ManageCounterparties = "manage_counterparties";
+    /// <summary>Setup da companhia: identificação, capacidade, orçamento, financeiro e commodities.</summary>
     public const string EditOrganization = "edit_organization";
-    public const string ViewUsers = "view_users";
+
+    // Usuários (membros, grupos/organograma e cargos)
+    public const string ViewUser = "view_user";
+    public const string CreateUser = "create_user";
+    public const string UpdateUser = "update_user";
+    public const string DeleteUser = "delete_user";
 }
 

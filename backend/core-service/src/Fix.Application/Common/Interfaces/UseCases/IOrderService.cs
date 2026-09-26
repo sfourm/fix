@@ -12,6 +12,9 @@ public interface IOrderService
 
     Task<OrderDto> UpdateOrderAsync(UpdateOrderCommand command, CancellationToken cancellationToken);
 
+    /// <summary>Vínculo a posteriori de uma boleta sem mandato (carimbo permanente).</summary>
+    Task<OrderDto> LinkOrderMandateAsync(LinkOrderMandateCommand command, CancellationToken cancellationToken);
+
     Task<OrderDto> ApproveOrderAsync(ApproveOrderCommand command, CancellationToken cancellationToken);
 
     Task<OrderDto> RejectOrderAsync(RejectOrderCommand command, CancellationToken cancellationToken);

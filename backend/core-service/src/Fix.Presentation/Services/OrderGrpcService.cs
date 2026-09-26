@@ -20,7 +20,7 @@ internal sealed class OrderGrpcService(
             new RegisterOrderCommand(
                 request.Context.ToUserId(),
                 request.Context.ToOrganizationId(),
-                request.MandateId.ToGuid("mandate_id"),
+                request.MandateId.ToOptionalString(request.HasMandateId).ToOptionalGuid("mandate_id"),
                 request.CounterpartyId.ToGuid("counterparty_id"),
                 request.Terms.ToInput()),
             orderService.RegisterOrderAsync,
@@ -35,6 +35,17 @@ internal sealed class OrderGrpcService(
                 request.CounterpartyId.ToGuid("counterparty_id"),
                 request.Terms.ToInput()),
             orderService.UpdateOrderAsync,
+            context.CancellationToken)).ToContract();
+
+    public override async Task<Order> LinkOrderMandate(LinkOrderMandateRequest request, ServerCallContext context) =>
+        (await validation.RunAsync(
+            new LinkOrderMandateCommand(
+                request.Context.ToUserId(),
+                request.Context.ToOrganizationId(),
+                request.Id.ToGuid("id"),
+                request.MandateId.ToGuid("mandate_id"),
+                request.Justification),
+            orderService.LinkOrderMandateAsync,
             context.CancellationToken)).ToContract();
 
     public override async Task<Order> ApproveOrder(OrderDecisionRequest request, ServerCallContext context) =>
@@ -124,7 +135,9 @@ internal sealed class OrderGrpcService(
                 request.Approval.ToOptionalDomain<Entities.ApprovalStatus>("approval"),
                 request.Confirmation.ToOptionalDomain<Entities.ConfirmationStatus>("confirmation"),
                 page,
-                pageSize),
+                pageSize,
+                request.WithoutMandate,
+                request.OnlyOutside),
             orderService.ListOrdersAsync,
             context.CancellationToken);
 

@@ -6,6 +6,6 @@ using Fix.Domain.AggregateRoots.Roles;
 namespace Fix.Application.Organizations.Commands;
 
 /// <summary>Renomeia um grupo do organograma.</summary>
-[RequireRole(RoleCodes.EditOrganization)]
+[RequireRole(RoleCodes.UpdateUser)]
 public sealed record RenameGroupCommand(Guid UserId, Guid OrganizationId, Guid GroupId, string Name)
     : ICommand, IOrganizationRequest;

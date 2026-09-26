@@ -61,9 +61,10 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'confirmations',
             component: () => import('../views/policies/tabs/PolicyConfirmationsTab.vue'),
-            meta: { permission: Permission.ViewOrder, trail: (p, t) => [...policyCrumbs(p, t), { label: 'Confirmations' }] },
+            meta: { permission: Permission.ViewOrder, trail: (p, t) => [...policyCrumbs(p, t), { label: 'Confirmações' }] },
           },
           { path: 'history', component: () => import('../views/policies/tabs/PolicyHistoryTab.vue') },
+          { path: 'audit', component: () => import('../views/policies/tabs/PolicyAuditTab.vue') },
         ],
       },
       {
@@ -89,6 +90,24 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../views/orders/OrderDetailView.vue'),
         props: true,
         meta: page(Permission.ViewOrder, (p, t) => [...mandateCrumbs(p, t), { label: t.get(p.orderId) }]),
+      },
+
+      // ---------- Exceções (FIX2 · I-01): boletas sem mandato ou FORA, fora da cadeia 1:N ----------
+      {
+        path: 'exceptions',
+        component: () => import('../views/orders/ExceptionsView.vue'),
+        meta: page(Permission.ViewOrder, () => [policiesCrumb, { label: 'Exceções' }]),
+      },
+      {
+        path: 'exceptions/orders/new',
+        component: () => import('../views/orders/OrderNewView.vue'),
+        meta: page(Permission.CreateOrder, () => [policiesCrumb, { label: 'Exceções', to: paths.exceptions() }, { label: 'Boleta sem mandato' }]),
+      },
+      {
+        path: 'exceptions/orders/:orderId',
+        component: () => import('../views/orders/OrderDetailView.vue'),
+        props: true,
+        meta: page(Permission.ViewOrder, (p, t) => [policiesCrumb, { label: 'Exceções', to: paths.exceptions() }, { label: t.get(p.orderId) }]),
       },
 
       // Endereços antigos: mandato e boleta viram o caminho aninhado; listas soltas voltam para as políticas.
@@ -119,7 +138,8 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../views/setup/CounterpartiesView.vue'),
         meta: page(Permission.ViewCounterparties, area('Organização', 'Contrapartes')),
       },
-      { path: 'timeline', component: () => import('../views/timeline/TimelineView.vue'), meta: page(undefined, area('Organização', 'Timeline')) },
+      { path: 'audit', component: () => import('../views/audit/AuditView.vue'), meta: page(undefined, area('Organização', 'Auditoria')) },
+      { path: 'timeline', redirect: (to) => ({ path: '/audit', query: to.query }) },
     ],
   },
   {

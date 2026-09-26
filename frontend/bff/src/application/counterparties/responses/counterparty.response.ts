@@ -2,6 +2,8 @@ import type { CounterpartyType } from '../../../cross-cutting/enums/counterparty
 
 export interface CounterpartyResponse {
   id: string;
+  /** Código legível da organização (CP-01). */
+  code: string;
   name: string;
   type: CounterpartyType;
   document: string | null;

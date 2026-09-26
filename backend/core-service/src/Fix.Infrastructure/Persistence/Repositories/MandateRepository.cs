@@ -45,15 +45,20 @@ internal sealed class MandateRepository(FixDbContext dbContext) : IMandateReposi
 
         var rows = await dbContext.Orders
             .AsNoTracking()
-            .Where(o => mandateIds.Contains(o.MandateId)
+            .Where(o => o.MandateId != null
+                && mandateIds.Contains(o.MandateId.Value)
                 && o.Approval == ApprovalStatus.Approved
                 && o.Id != exceptOrderId)
-            .GroupBy(o => o.MandateId)
+            .GroupBy(o => o.MandateId!.Value)
             .Select(g => new { MandateId = g.Key, Total = g.Sum(o => (o.Lots ?? 0) + (o.NotionalUsd ?? 0)) })
             .ToListAsync(cancellationToken);
 
         return rows.ToDictionary(r => r.MandateId, r => r.Total);
     }
+
+    // O filtro de organização do DbContext limita ao tenant atual.
+    public async Task<int> NextNumberAsync(CancellationToken cancellationToken) =>
+        (await dbContext.Mandates.MaxAsync(m => (int?)m.Number, cancellationToken) ?? 0) + 1;
 
     public void Add(Mandate mandate) => dbContext.Mandates.Add(mandate);
 

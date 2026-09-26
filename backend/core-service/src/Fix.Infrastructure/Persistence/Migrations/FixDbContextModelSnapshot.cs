@@ -131,6 +131,10 @@ namespace Fix.Infrastructure.Persistence.Migrations
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("notional_limit_usd");
 
+                    b.Property<int>("Number")
+                        .HasColumnType("integer")
+                        .HasColumnName("number");
+
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid")
                         .HasColumnName("organization_id");
@@ -151,6 +155,10 @@ namespace Fix.Infrastructure.Persistence.Migrations
                     b.HasIndex("OrganizationId", "Name")
                         .IsUnique()
                         .HasDatabaseName("ix_counterparties_organization_id_name");
+
+                    b.HasIndex("OrganizationId", "Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_counterparties_organization_id_number");
 
                     b.ToTable("counterparties", (string)null);
                 });
@@ -203,6 +211,10 @@ namespace Fix.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("IssuedBy")
                         .HasColumnType("uuid")
                         .HasColumnName("issued_by");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer")
+                        .HasColumnName("number");
 
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid")
@@ -312,6 +324,10 @@ namespace Fix.Infrastructure.Persistence.Migrations
                     b.HasIndex("PolicyId")
                         .HasDatabaseName("ix_mandates_policy_id");
 
+                    b.HasIndex("OrganizationId", "Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_mandates_organization_id_number");
+
                     b.HasIndex("OrganizationId", "PolicyId")
                         .HasDatabaseName("ix_mandates_organization_id_policy_id");
 
@@ -352,6 +368,10 @@ namespace Fix.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("confirmation");
 
+                    b.Property<Guid?>("ConfirmationBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("confirmation_by");
+
                     b.Property<string>("ConfirmationNote")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -364,6 +384,10 @@ namespace Fix.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CounterpartyId")
                         .HasColumnType("uuid")
                         .HasColumnName("counterparty_id");
+
+                    b.Property<bool>("CoveredSale")
+                        .HasColumnType("boolean")
+                        .HasColumnName("covered_sale");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -382,18 +406,31 @@ namespace Fix.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("decision_note");
 
+                    b.Property<string>("DeviationNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("deviation_note");
+
                     b.Property<string>("Direction")
                         .IsRequired()
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
                         .HasColumnName("direction");
 
+                    b.Property<bool>("ExceedsMandate")
+                        .HasColumnType("boolean")
+                        .HasColumnName("exceeds_mandate");
+
+                    b.Property<bool>("LinkedAfterExecution")
+                        .HasColumnType("boolean")
+                        .HasColumnName("linked_after_execution");
+
                     b.Property<decimal?>("Lots")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("lots");
 
-                    b.Property<Guid>("MandateId")
+                    b.Property<Guid?>("MandateId")
                         .HasColumnType("uuid")
                         .HasColumnName("mandate_id");
 
@@ -406,6 +443,10 @@ namespace Fix.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("notional_usd");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer")
+                        .HasColumnName("number");
 
                     b.Property<string>("OptionKind")
                         .HasMaxLength(10)
@@ -456,6 +497,23 @@ namespace Fix.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
 
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Compliance", "Fix.Domain.AggregateRoots.Orders.Order.Compliance#Compliance", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<string>("Reason")
+                                .IsRequired()
+                                .HasMaxLength(500)
+                                .HasColumnType("character varying(500)")
+                                .HasColumnName("compliance_reason");
+
+                            b1.Property<string>("Status")
+                                .IsRequired()
+                                .HasMaxLength(10)
+                                .HasColumnType("character varying(10)")
+                                .HasColumnName("compliance_status");
+                        });
+
                     b.HasKey("Id")
                         .HasName("pk_orders");
 
@@ -467,6 +525,10 @@ namespace Fix.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OrganizationId", "Confirmation")
                         .HasDatabaseName("ix_orders_organization_id_confirmation");
+
+                    b.HasIndex("OrganizationId", "Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_orders_organization_id_number");
 
                     b.HasIndex("OrganizationId", "MandateId", "Approval")
                         .HasDatabaseName("ix_orders_organization_id_mandate_id_approval");
@@ -1068,10 +1130,52 @@ namespace Fix.Infrastructure.Persistence.Migrations
                                 .HasColumnType("numeric(6,2)")
                                 .HasColumnName("limits_absolute_ceiling_pct");
 
+                            b1.Property<int>("BuybackDeadlineBusinessDays")
+                                .HasColumnType("integer")
+                                .HasColumnName("limits_buyback_deadline_business_days");
+
+                            b1.Property<decimal>("BuybackTriggerPct")
+                                .HasPrecision(6, 2)
+                                .HasColumnType("numeric(6,2)")
+                                .HasColumnName("limits_buyback_trigger_pct");
+
+                            b1.Property<int>("ConfirmationDeadlineBusinessDays")
+                                .HasColumnType("integer")
+                                .HasColumnName("limits_confirmation_deadline_business_days");
+
+                            b1.Property<decimal>("Contingency12MonthsPct")
+                                .HasPrecision(6, 2)
+                                .HasColumnType("numeric(6,2)")
+                                .HasColumnName("limits_contingency12months_pct");
+
+                            b1.Property<decimal>("Contingency1MonthPct")
+                                .HasPrecision(6, 2)
+                                .HasColumnType("numeric(6,2)")
+                                .HasColumnName("limits_contingency1month_pct");
+
+                            b1.Property<decimal>("Contingency24MonthsPct")
+                                .HasPrecision(6, 2)
+                                .HasColumnType("numeric(6,2)")
+                                .HasColumnName("limits_contingency24months_pct");
+
+                            b1.Property<decimal>("Contingency36MonthsPct")
+                                .HasPrecision(6, 2)
+                                .HasColumnType("numeric(6,2)")
+                                .HasColumnName("limits_contingency36months_pct");
+
+                            b1.Property<decimal>("Contingency6MonthsPct")
+                                .HasPrecision(6, 2)
+                                .HasColumnType("numeric(6,2)")
+                                .HasColumnName("limits_contingency6months_pct");
+
                             b1.Property<decimal>("CoveredCallMaxPct")
                                 .HasPrecision(6, 2)
                                 .HasColumnType("numeric(6,2)")
                                 .HasColumnName("limits_covered_call_max_pct");
+
+                            b1.Property<int>("DeviationReportHours")
+                                .HasColumnType("integer")
+                                .HasColumnName("limits_deviation_report_hours");
 
                             b1.Property<decimal>("FinancialConcentrationMaxPct")
                                 .HasPrecision(6, 2)
@@ -1111,10 +1215,36 @@ namespace Fix.Infrastructure.Persistence.Migrations
                                 .HasColumnType("numeric(6,2)")
                                 .HasColumnName("limits_margin_cash_max_pct");
 
+                            b1.Property<decimal>("MixShiftMaxPp")
+                                .HasPrecision(6, 2)
+                                .HasColumnType("numeric(6,2)")
+                                .HasColumnName("limits_mix_shift_max_pp");
+
                             b1.Property<decimal>("PhysicalConcentrationMaxPct")
                                 .HasPrecision(6, 2)
                                 .HasColumnType("numeric(6,2)")
                                 .HasColumnName("limits_physical_concentration_max_pct");
+
+                            b1.Property<int>("PricingColdPercentile")
+                                .HasColumnType("integer")
+                                .HasColumnName("limits_pricing_cold_percentile");
+
+                            b1.Property<int>("PricingHotPercentile")
+                                .HasColumnType("integer")
+                                .HasColumnName("limits_pricing_hot_percentile");
+
+                            b1.Property<int>("RegistrationDeadlineDays")
+                                .HasColumnType("integer")
+                                .HasColumnName("limits_registration_deadline_days");
+
+                            b1.Property<int>("StressDays")
+                                .HasColumnType("integer")
+                                .HasColumnName("limits_stress_days");
+
+                            b1.Property<decimal>("StressSigmas")
+                                .HasPrecision(6, 2)
+                                .HasColumnType("numeric(6,2)")
+                                .HasColumnName("limits_stress_sigmas");
                         });
 
                     b.ComplexProperty(typeof(Dictionary<string, object>), "Validity", "Fix.Domain.AggregateRoots.Policies.Policy.Validity#DateRange", b1 =>
@@ -1486,7 +1616,7 @@ namespace Fix.Infrastructure.Persistence.Migrations
                             Id = new Guid("cb7df096-8268-3ca4-808d-7ac2e51a96da"),
                             Code = "manage_confirmation",
                             CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            Description = "Registrar e reconciliar confirmations (middle office)"
+                            Description = "Registrar e reconciliar confirmações (middle office)"
                         },
                         new
                         {
@@ -1514,14 +1644,35 @@ namespace Fix.Infrastructure.Persistence.Migrations
                             Id = new Guid("5a4ac9a6-1c8e-167b-9182-80cbf2db6de8"),
                             Code = "edit_organization",
                             CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            Description = "Editar o setup da companhia, membros e grupos"
+                            Description = "Editar o setup da companhia"
                         },
                         new
                         {
-                            Id = new Guid("0cb12fbb-961c-66af-bad6-52e04cc75baf"),
-                            Code = "view_users",
+                            Id = new Guid("1b307cd1-9a78-7280-78ed-917e0aeeb11c"),
+                            Code = "view_user",
                             CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            Description = "Visualizar membros e grupos"
+                            Description = "Visualizar membros, grupos e organograma"
+                        },
+                        new
+                        {
+                            Id = new Guid("74db766c-34b4-eb64-b49b-1f745a25cdfb"),
+                            Code = "create_user",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Adicionar membros e criar grupos"
+                        },
+                        new
+                        {
+                            Id = new Guid("b90f6c34-2b62-3e52-8f6c-a6b2d5ccae8a"),
+                            Code = "update_user",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Editar membros, grupos, organograma e cargos"
+                        },
+                        new
+                        {
+                            Id = new Guid("2d9f0008-f3bb-0824-92dc-f59d8b091b48"),
+                            Code = "delete_user",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Remover membros e excluir grupos"
                         });
                 });
 
@@ -1797,16 +1948,37 @@ namespace Fix.Infrastructure.Persistence.Migrations
                         },
                         new
                         {
-                            Id = new Guid("f40127fb-71e1-ce69-b318-018de9ca7684"),
+                            Id = new Guid("b7d160a4-b340-bfcf-a23b-2dd52128332e"),
                             CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            RoleId = new Guid("0cb12fbb-961c-66af-bad6-52e04cc75baf"),
+                            RoleId = new Guid("1b307cd1-9a78-7280-78ed-917e0aeeb11c"),
                             RuleId = new Guid("eca4b1bc-3f11-091d-7220-6a4ac2047557")
                         },
                         new
                         {
-                            Id = new Guid("7861f371-802a-085a-a4a2-90733c4c00b8"),
+                            Id = new Guid("c14ab1fc-ec54-058c-b332-7871d2f9c193"),
                             CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            RoleId = new Guid("0cb12fbb-961c-66af-bad6-52e04cc75baf"),
+                            RoleId = new Guid("74db766c-34b4-eb64-b49b-1f745a25cdfb"),
+                            RuleId = new Guid("eca4b1bc-3f11-091d-7220-6a4ac2047557")
+                        },
+                        new
+                        {
+                            Id = new Guid("fc845878-436a-e825-1536-5d8a12834956"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            RoleId = new Guid("b90f6c34-2b62-3e52-8f6c-a6b2d5ccae8a"),
+                            RuleId = new Guid("eca4b1bc-3f11-091d-7220-6a4ac2047557")
+                        },
+                        new
+                        {
+                            Id = new Guid("1540aded-03f9-52a0-8851-25683871aa49"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            RoleId = new Guid("2d9f0008-f3bb-0824-92dc-f59d8b091b48"),
+                            RuleId = new Guid("eca4b1bc-3f11-091d-7220-6a4ac2047557")
+                        },
+                        new
+                        {
+                            Id = new Guid("7e227d48-0964-adb2-e7fc-42c66b791756"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            RoleId = new Guid("1b307cd1-9a78-7280-78ed-917e0aeeb11c"),
                             RuleId = new Guid("92acc37f-4dd4-c818-1aca-1b5993a088cd")
                         },
                         new
@@ -1958,9 +2130,30 @@ namespace Fix.Infrastructure.Persistence.Migrations
                         },
                         new
                         {
-                            Id = new Guid("4648f9ec-3017-6dc1-4823-16543e317148"),
+                            Id = new Guid("7c7da31c-2313-3821-803e-f233df53abbb"),
                             CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            RoleId = new Guid("0cb12fbb-961c-66af-bad6-52e04cc75baf"),
+                            RoleId = new Guid("1b307cd1-9a78-7280-78ed-917e0aeeb11c"),
+                            RuleId = new Guid("cef275a0-cb75-62d9-0526-6f384c73ed83")
+                        },
+                        new
+                        {
+                            Id = new Guid("9d78e5c6-5d6d-d531-0332-c618bdab6244"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            RoleId = new Guid("74db766c-34b4-eb64-b49b-1f745a25cdfb"),
+                            RuleId = new Guid("cef275a0-cb75-62d9-0526-6f384c73ed83")
+                        },
+                        new
+                        {
+                            Id = new Guid("1aabdd68-37f6-ee27-23e6-ce97537f5a41"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            RoleId = new Guid("b90f6c34-2b62-3e52-8f6c-a6b2d5ccae8a"),
+                            RuleId = new Guid("cef275a0-cb75-62d9-0526-6f384c73ed83")
+                        },
+                        new
+                        {
+                            Id = new Guid("7907f575-caf5-233b-de6f-be81e086cc70"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            RoleId = new Guid("2d9f0008-f3bb-0824-92dc-f59d8b091b48"),
                             RuleId = new Guid("cef275a0-cb75-62d9-0526-6f384c73ed83")
                         },
                         new
@@ -2338,7 +2531,6 @@ namespace Fix.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("MandateId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
                         .HasConstraintName("fk_orders_mandates_mandate_id");
 
                     b.HasOne("Fix.Domain.AggregateRoots.Organizations.Organization", null)

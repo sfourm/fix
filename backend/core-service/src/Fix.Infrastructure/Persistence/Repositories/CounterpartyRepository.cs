@@ -33,6 +33,10 @@ internal sealed class CounterpartyRepository(FixDbContext dbContext) : ICounterp
     public Task<int> CountUsagesAsync(Guid counterpartyId, CancellationToken cancellationToken) =>
         dbContext.Orders.CountAsync(o => o.CounterpartyId == counterpartyId, cancellationToken);
 
+    // O filtro de organização do DbContext limita ao tenant atual.
+    public async Task<int> NextNumberAsync(CancellationToken cancellationToken) =>
+        (await dbContext.Counterparties.MaxAsync(c => (int?)c.Number, cancellationToken) ?? 0) + 1;
+
     public void Add(Counterparty counterparty) => dbContext.Counterparties.Add(counterparty);
 
     public void Remove(Counterparty counterparty) => dbContext.Counterparties.Remove(counterparty);

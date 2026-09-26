@@ -24,6 +24,7 @@ export interface ContractMandateTerms {
 
 export interface ContractMandate {
   id: string;
+  code: string;
   policyId: string;
   policyCode: string;
   policyVersion: string;
@@ -67,6 +68,7 @@ const toTermsDto = (t: ContractMandateTerms): MandateTermsDto => ({
 
 export const toMandateDto = (m: ContractMandate): MandateDto => ({
   id: m.id,
+  code: m.code,
   policyId: m.policyId,
   policyCode: m.policyCode,
   policyVersion: m.policyVersion,

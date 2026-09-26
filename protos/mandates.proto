@@ -87,6 +87,7 @@ message Mandate {
   optional string decided_by = 15;
   optional string decided_at = 16;
   optional string decision_note = 17;
+  string code = 18; // MD-01
 }
 
 message IssueMandateRequest {

@@ -62,7 +62,22 @@ internal static class PolicyContractMapper
             limits.FinancialConcentrationMaxPct.ToDecimal(),
             limits.LogisticsDeadlineMonths,
             limits.FreightCeilingPct.ToDecimal(),
-            limits.CoveredCallMaxPct.ToDecimal());
+            limits.CoveredCallMaxPct.ToDecimal(),
+            limits.ContingencyOneMonthPct.ToDecimal(),
+            limits.ContingencySixMonthsPct.ToDecimal(),
+            limits.ContingencyTwelveMonthsPct.ToDecimal(),
+            limits.ContingencyTwentyFourMonthsPct.ToDecimal(),
+            limits.ContingencyThirtySixMonthsPct.ToDecimal(),
+            limits.BuybackTriggerPct.ToDecimal(),
+            limits.BuybackDeadlineBusinessDays,
+            limits.StressSigmas.ToDecimal(),
+            limits.StressDays,
+            limits.PricingHotPercentile,
+            limits.PricingColdPercentile,
+            limits.MixShiftMaxPp.ToDecimal(),
+            limits.ConfirmationDeadlineBusinessDays,
+            limits.RegistrationDeadlineDays,
+            limits.DeviationReportHours);
     }
 
     public static PolicyAxisInput ToInput(this Contract.PolicyAxisInput? axis)
@@ -111,6 +126,21 @@ internal static class PolicyContractMapper
         LogisticsDeadlineMonths = limits.LogisticsDeadlineMonths,
         FreightCeilingPct = (double)limits.FreightCeilingPct,
         CoveredCallMaxPct = (double)limits.CoveredCallMaxPct,
+        ContingencyOneMonthPct = (double)limits.Contingency1MonthPct,
+        ContingencySixMonthsPct = (double)limits.Contingency6MonthsPct,
+        ContingencyTwelveMonthsPct = (double)limits.Contingency12MonthsPct,
+        ContingencyTwentyFourMonthsPct = (double)limits.Contingency24MonthsPct,
+        ContingencyThirtySixMonthsPct = (double)limits.Contingency36MonthsPct,
+        BuybackTriggerPct = (double)limits.BuybackTriggerPct,
+        BuybackDeadlineBusinessDays = limits.BuybackDeadlineBusinessDays,
+        StressSigmas = (double)limits.StressSigmas,
+        StressDays = limits.StressDays,
+        PricingHotPercentile = limits.PricingHotPercentile,
+        PricingColdPercentile = limits.PricingColdPercentile,
+        MixShiftMaxPp = (double)limits.MixShiftMaxPp,
+        ConfirmationDeadlineBusinessDays = limits.ConfirmationDeadlineBusinessDays,
+        RegistrationDeadlineDays = limits.RegistrationDeadlineDays,
+        DeviationReportHours = limits.DeviationReportHours,
     };
 
     private static Contract.PolicyAxis ToContract(this PolicyAxisDto axis)

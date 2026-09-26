@@ -6,7 +6,7 @@ using Fix.Domain.AggregateRoots.Roles;
 namespace Fix.Application.Organizations.Commands;
 
 /// <summary>Cria um grupo no organograma, abaixo do grupo pai (ou da raiz, se ParentGroupId for nulo).</summary>
-[RequireRole(RoleCodes.EditOrganization)]
+[RequireRole(RoleCodes.CreateUser)]
 public sealed record CreateGroupCommand(
     Guid UserId,
     Guid OrganizationId,

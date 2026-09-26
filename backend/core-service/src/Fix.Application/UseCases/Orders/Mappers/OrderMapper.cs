@@ -1,16 +1,20 @@
+using Fix.Application.Mandates.Mappers;
 using Fix.Application.Orders.Commands;
 using Fix.Application.Orders.Dtos;
 using Fix.Domain.Common;
+using Fix.Domain.AggregateRoots.Mandates;
 using Fix.Domain.AggregateRoots.Orders;
 
 namespace Fix.Application.Orders.Mappers;
 
 internal static class OrderMapper
 {
-    public static OrderDto ToDto(this Order order, string mandateTitle, string counterpartyName, DateOnly today) => new(
+    public static OrderDto ToDto(this Order order, Mandate? mandate, string counterpartyName, DateOnly today) => new(
         order.Id,
+        order.Code,
         order.MandateId,
-        mandateTitle,
+        mandate?.Code,
+        mandate?.Title.Value ?? string.Empty,
         order.Type,
         order.Direction,
         order.CounterpartyId,
@@ -23,8 +27,13 @@ internal static class OrderMapper
         order.PriceUnit,
         order.OptionKind,
         order.Premium,
+        order.CoveredSale,
         order.TradeDate,
         order.Notes,
+        order.Compliance.ToDto(),
+        order.LinkedAfterExecution,
+        order.ExceedsMandate,
+        order.DeviationNote,
         order.Approval,
         order.RequestedBy,
         order.DecidedBy,
@@ -33,6 +42,7 @@ internal static class OrderMapper
         order.Confirmation,
         order.ConfirmedOn,
         order.ConfirmationNote,
+        order.ConfirmationBy,
         order.IsConfirmationOverdue(today));
 
     public static OrderTerms ToTerms(this OrderTermsInput input) => new(
@@ -46,6 +56,8 @@ internal static class OrderMapper
         input.OptionKind,
         input.Premium,
         input.TradeDate,
-        input.Notes);
+        input.Notes,
+        input.Commodity,
+        input.CoveredSale,
+        input.Justification);
 }
-

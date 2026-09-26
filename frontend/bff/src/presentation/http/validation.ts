@@ -68,6 +68,17 @@ const toPage = <T extends { page: number; pageSize: number }>({ page, pageSize, 
 });
 
 const note = z.object({ note: optionalText(1000) });
+
+/** Filtros da auditoria (todos opcionais). Período em ISO 8601 com fuso. */
+const timelineFilters = z.object({
+  entityType: z.string().trim().max(128).optional(),
+  entityId: z.guid().optional(),
+  action: z.enum(['Created', 'Updated', 'Deleted']).optional(),
+  authorId: z.guid().optional(),
+  from: z.iso.datetime({ offset: true }).optional(),
+  to: z.iso.datetime({ offset: true }).optional(),
+  search: z.string().trim().min(1).max(200).optional(),
+});
 const requiredNote = z.object({ note: text(1000) });
 
 // ---------- políticas ----------
@@ -88,6 +99,33 @@ const policyLimits = z
     logisticsDeadlineMonths: z.number().int().min(0).max(36),
     freightCeilingPct: extendedPct,
     coveredCallMaxPct: pct,
+    contingency1MonthPct: pct,
+    contingency6MonthsPct: pct,
+    contingency12MonthsPct: pct,
+    contingency24MonthsPct: pct,
+    contingency36MonthsPct: pct,
+    buybackTriggerPct: extendedPct,
+    buybackDeadlineBusinessDays: z.number().int().min(1).max(60),
+    stressSigmas: z.number().positive().max(10),
+    stressDays: z.number().int().min(1).max(60),
+    pricingHotPercentile: z.number().int().min(0).max(100),
+    pricingColdPercentile: z.number().int().min(0).max(100),
+    mixShiftMaxPp: pct,
+    confirmationDeadlineBusinessDays: z.number().int().min(0).max(30),
+    registrationDeadlineDays: z.number().int().min(0).max(30),
+    deviationReportHours: z.number().int().min(1).max(720),
+  })
+  .refine(
+    (l) =>
+      l.contingency1MonthPct <= l.contingency6MonthsPct &&
+      l.contingency6MonthsPct <= l.contingency12MonthsPct &&
+      l.contingency12MonthsPct <= l.contingency24MonthsPct &&
+      l.contingency24MonthsPct <= l.contingency36MonthsPct,
+    { path: ['contingency36MonthsPct'], message: 'A contingência não pode diminuir com o prazo (1 ≤ 6 ≤ 12 ≤ 24 ≤ 36 meses).' },
+  )
+  .refine((l) => l.pricingColdPercentile < l.pricingHotPercentile, {
+    path: ['pricingHotPercentile'],
+    message: 'O percentil frio deve ser menor que o quente.',
   })
   .refine((l) => l.fxFixedMaxPct >= l.fxFixedMinPct, {
     path: ['fxFixedMaxPct'],
@@ -177,6 +215,9 @@ const orderTerms = z.object({
   premium: optionalNumber,
   tradeDate: date,
   notes: optionalText(1000),
+  commodity: nullableEnum(COMMODITIES),
+  coveredSale: z.boolean().default(false),
+  justification: optionalText(500),
 });
 
 // ---------- setup ----------
@@ -299,7 +340,8 @@ export const schemas = {
   requiredNote,
 
   // boletas
-  registerOrder: z.object({ mandateId: z.guid(), counterpartyId: z.guid(), terms: orderTerms }),
+  registerOrder: z.object({ mandateId: z.guid().nullable().default(null), counterpartyId: z.guid(), terms: orderTerms }),
+  linkOrderMandate: z.object({ mandateId: z.guid(), justification: z.string().trim().min(1, 'Justifique o vínculo a posteriori.').max(500) }),
   updateOrder: z.object({ counterpartyId: z.guid(), terms: orderTerms }),
   confirmOrder: z.object({ receivedOn: date }),
   ordersQuery: pageQuery
@@ -307,17 +349,27 @@ export const schemas = {
       mandateId: z.guid().optional(),
       approval: z.enum(APPROVAL_STATUSES).optional(),
       confirmation: z.enum(CONFIRMATION_STATUSES).optional(),
+      withoutMandate: z.enum(['true', 'false']).optional(),
+      onlyOutside: z.enum(['true', 'false']).optional(),
     })
-    .transform(({ mandateId, approval, confirmation, ...page }) => ({
+    .transform(({ mandateId, approval, confirmation, withoutMandate, onlyOutside, ...page }) => ({
       mandateId: mandateId ?? null,
       approval: approval ?? null,
       confirmation: confirmation ?? null,
+      withoutMandate: withoutMandate === 'true',
+      onlyOutside: onlyOutside === 'true',
       page: { page: page.page, pageSize: page.pageSize },
     })),
 
-  timelineQuery: z.object({
-    entityType: z.string().trim().max(128).optional(),
-    entityId: z.guid().optional(),
+  timelineQuery: timelineFilters.extend({
     limit: z.coerce.number().int().min(1).max(500).optional(),
   }),
+
+  /** Auditoria paginada: até 200 por página (a exportação percorre as páginas). */
+  timelinePageQuery: timelineFilters
+    .extend({
+      page: z.coerce.number().int().min(1).default(1),
+      pageSize: z.coerce.number().int().min(1).max(200).default(25),
+    })
+    .transform(toPage),
 };

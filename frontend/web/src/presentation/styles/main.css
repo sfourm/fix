@@ -920,6 +920,12 @@ table.table {
   font-size: 0.85rem;
 }
 
+/* Select pequeno: espaço para a seta não cobrir o valor. */
+select.input.input-sm {
+  padding-right: 30px;
+  background-position: right 10px center;
+}
+
 /* ---------- Responsivo ---------- */
 
 @media (max-width: 1000px) {

@@ -1,0 +1,61 @@
+{{- if .Values.observability.enabled }}
+{{- $o := .Values.observability }}
+{{- $grafana := printf "%s-grafana" (include "fix.fullname" .) }}
+# Semente dos dashboards: depois de cada instalação/atualização, cria pela API do Grafana os dashboards de
+# observability/grafana/dashboards que ainda não existem (script em observability/grafana/seed-dashboards.sh).
+# Pela API eles ficam editáveis e salvos no banco do Grafana; o que foi salvo pela interface não é sobrescrito.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $grafana }}-seed
+  labels:
+    {{- include "fix.labels" (dict "ctx" . "component" "grafana") | nindent 4 }}
+data:
+  seed-dashboards.sh: |
+    {{- .Files.Get "files/seed-dashboards.sh" | required "files/seed-dashboards.sh ausente: copie observability/grafana/seed-dashboards.sh para o chart antes de empacotar." | nindent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $grafana }}-dashboards-seed
+  labels:
+    {{- include "fix.labels" (dict "ctx" . "component" "grafana") | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        {{- include "fix.selectorLabels" (dict "ctx" . "component" "grafana-seed") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+      containers:
+        - name: seed
+          image: {{ $o.grafana.seedImage }}
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          command: ["sh", "/seed/seed-dashboards.sh"]
+          env:
+            - { name: GRAFANA_URL, value: "http://{{ $grafana }}:3000" }
+            - { name: GRAFANA_USER, value: {{ $o.grafana.adminUser | quote }} }
+            - name: GRAFANA_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secrets.name }}, key: grafana-admin-password }
+            - { name: DASHBOARDS_DIR, value: /dashboards }
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 64Mi }
+          volumeMounts:
+            - { name: seed, mountPath: /seed }
+            - { name: dashboards, mountPath: /dashboards }
+      volumes:
+        - name: seed
+          configMap: { name: {{ $grafana }}-seed }
+        - name: dashboards
+          configMap: { name: {{ $grafana }}-dashboards }
+{{- end }}

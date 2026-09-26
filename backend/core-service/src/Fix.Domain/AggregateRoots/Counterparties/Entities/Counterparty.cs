@@ -13,13 +13,19 @@ public sealed class Counterparty : AggregateRoot, IOrganizationScoped
     {
     }
 
-    private Counterparty(Guid organizationId)
+    private Counterparty(Guid organizationId, int number)
     {
         OrganizationId = organizationId;
+        Number = number;
         IsHomologated = true;
     }
 
     public Guid OrganizationId { get; private set; }
+
+    /// <summary>Sequencial na organização; o código legível é CP-01 (I-10).</summary>
+    public int Number { get; private set; }
+
+    public string Code => EntityCodes.Counterparty(Number);
 
     public Name Name { get; private set; } = null!;
 
@@ -43,6 +49,7 @@ public sealed class Counterparty : AggregateRoot, IOrganizationScoped
 
     public static Counterparty Create(
         Guid organizationId,
+        int number,
         Name name,
         CounterpartyType type,
         string? document,
@@ -51,7 +58,7 @@ public sealed class Counterparty : AggregateRoot, IOrganizationScoped
         decimal? notionalLimitUsd,
         decimal? mtmLimitUsd)
     {
-        var counterparty = new Counterparty(organizationId);
+        var counterparty = new Counterparty(organizationId, number);
         counterparty.Update(name, type, document, address, country, notionalLimitUsd, mtmLimitUsd);
         return counterparty;
     }

@@ -41,6 +41,8 @@ internal sealed class MandateConfiguration : IEntityTypeConfiguration<Mandate>
             compliance.Property(c => c.Reason).HasMaxLength(500).IsRequired();
         });
 
+        builder.Ignore(m => m.Code);
+        builder.HasIndex(m => new { m.OrganizationId, m.Number }).IsUnique();
         builder.HasIndex(m => new { m.OrganizationId, m.Status });
         builder.HasIndex(m => new { m.OrganizationId, m.PolicyId });
         builder.HasOne<Organization>().WithMany().HasForeignKey(m => m.OrganizationId).OnDelete(DeleteBehavior.Restrict);

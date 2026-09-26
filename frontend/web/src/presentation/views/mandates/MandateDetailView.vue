@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useApi } from '@/application/api-provider';
 import { useOrganizationStore } from '@/application/stores/organization.store';
 import { useQueueStore } from '@/application/stores/queue.store';
@@ -28,17 +28,21 @@ import OrderTable from '../../components/order/OrderTable.vue';
 import PageHeader from '../../components/PageHeader.vue';
 import StateBlock from '../../components/StateBlock.vue';
 import StatusBadge from '../../components/StatusBadge.vue';
-import TimelineList from '../../components/TimelineList.vue';
+import AuditPanel from '../../components/audit/AuditPanel.vue';
 import { paths } from '../../paths';
 import { useTrailStore } from '../../trail';
 
-/** Mandato dentro da política (cadeia 1:N): a política vem da rota; as boletas do mandato ficam aqui. */
+/**
+ * Mandato dentro da política (cadeia 1:N), no mesmo formato da política: cabeçalho com indicadores e abas de largura
+ * total (Visão geral · Boletas · Auditoria). A aba aberta fica na URL (?tab=).
+ */
 const props = defineProps<{ policyId: string; mandateId: string }>();
 
 const api = useApi();
 const organization = useOrganizationStore();
 const queue = useQueueStore();
 const router = useRouter();
+const route = useRoute();
 const toast = useToast();
 const { confirm } = useConfirm();
 const trail = useTrailStore();
@@ -48,13 +52,27 @@ const { data: mandate, loading, error, status, load } = useLoader(async () => {
   // Aberto pela política errada (link antigo/copiado): vai para o caminho certo.
   if (m.policyId !== props.policyId) router.replace(paths.mandate(m.policyId, m.id));
   trail.set(m.policyId, `${m.policyCode.toUpperCase()} ${m.policyVersion}`);
-  trail.set(m.id, m.terms.title);
+  trail.set(m.id, `${m.code} · ${m.terms.title}`);
   return m;
 });
 const orders = useLoader(() =>
   organization.can(Permission.ViewOrder) ? api.orders.list({ mandateId: props.mandateId, pageSize: 100 }) : Promise.resolve(null),
 );
 const refreshKey = ref(0);
+
+// ---------- Abas ----------
+type Tab = 'overview' | 'orders' | 'audit';
+const tab = computed<Tab>(() => (['orders', 'audit'].includes(route.query.tab as string) ? (route.query.tab as Tab) : 'overview'));
+const tabs = computed(() => [
+  { key: 'overview' as const, label: 'Visão geral' },
+  ...(organization.can(Permission.ViewOrder)
+    ? [{ key: 'orders' as const, label: 'Boletas', count: orders.data.value?.totalCount, alert: outsideOrders.value }]
+    : []),
+  { key: 'audit' as const, label: 'Auditoria' },
+]);
+const selectTab = (key: Tab) => router.replace({ query: key === 'overview' ? {} : { tab: key } });
+/** Boletas deste mandato com desvio (FORA, estouro, a posteriori): contam na aba. */
+const outsideOrders = computed(() => orders.data.value?.items.filter((o) => o.compliance.status === 'Outside').length ?? 0);
 
 const executable = computed(() => !!mandate.value && orderTypesFor(mandate.value.type).length > 0);
 const usedPct = computed(() => {
@@ -148,7 +166,7 @@ onMounted(() => {
   <StateBlock :loading="loading && !mandate" :error="status === 404 ? 'Mandato não encontrado.' : error" @retry="load">
     <template v-if="mandate">
       <PageHeader
-        :kicker="`Mandato · ${mandateTypeLabel[mandate.type]} · eixo ${mandate.axisCode} · ${mandate.axisTitle}`"
+        :kicker="`${mandate.code} · Mandato · ${mandateTypeLabel[mandate.type]} · eixo ${mandate.axisCode} · ${mandate.axisTitle}`"
         :title="mandate.terms.title"
         :subtitle="mandate.terms.criteria"
       >
@@ -200,7 +218,15 @@ onMounted(() => {
         Mandato fora da política: a aprovação exige a role approve_exception.
       </p>
 
-      <div class="grid-2">
+      <nav class="tabs mandate-tabs" role="tablist" aria-label="Seções do mandato">
+        <button v-for="t in tabs" :key="t.key" type="button" role="tab" class="tab" :class="{ active: tab === t.key }" :aria-selected="tab === t.key" @click="selectTab(t.key)">
+          {{ t.label }}
+          <span v-if="'count' in t && t.count !== undefined" class="count">{{ t.count }}</span>
+          <span v-if="'alert' in t && t.alert" class="alert-count" :title="`${t.alert} boleta(s) FORA`">{{ t.alert }}</span>
+        </button>
+      </nav>
+
+      <div v-if="tab === 'overview'" class="grid-2">
         <section class="card">
           <header class="card-header">
             <h2>Termos</h2>
@@ -243,21 +269,28 @@ onMounted(() => {
           </div>
         </section>
 
-        <section v-if="organization.can(Permission.ViewOrder)" class="card" style="grid-column: 1 / -1">
-          <header class="card-header">
-            <h2>Boletas deste mandato</h2>
-            <span class="badge">{{ orders.data.value?.totalCount ?? 0 }}</span>
-          </header>
-          <StateBlock :loading="orders.loading.value" :error="orders.error.value" :empty="orders.data.value?.items.length === 0" empty-text="Nenhuma boleta registrada neste mandato." @retry="orders.load">
-            <OrderTable :orders="orders.data.value?.items ?? []" :policy-id="props.policyId" />
-          </StateBlock>
-        </section>
-
-        <section class="card" style="grid-column: 1 / -1">
-          <header class="card-header"><h2>Histórico</h2></header>
-          <TimelineList entity-type="Mandate" :entity-id="mandate.id" :refresh-key="refreshKey" />
-        </section>
       </div>
+
+      <section v-else-if="tab === 'orders'" class="card">
+        <header class="card-header">
+          <h2>Boletas deste mandato</h2>
+          <RouterLink
+            v-if="mandate.status === 'Active' && executable && organization.can(Permission.CreateOrder)"
+            class="btn btn-primary btn-sm"
+            :to="paths.newOrder(props.policyId, mandate.id)"
+          >
+            + Registrar boleta
+          </RouterLink>
+        </header>
+        <StateBlock :loading="orders.loading.value" :error="orders.error.value" :empty="orders.data.value?.items.length === 0" empty-text="Nenhuma boleta registrada neste mandato." @retry="orders.load">
+          <OrderTable :orders="orders.data.value?.items ?? []" :policy-id="props.policyId" />
+        </StateBlock>
+      </section>
+
+      <template v-else>
+        <p class="lead small audit-intro">Tudo o que mudou neste mandato: emissão, enquadramento, decisões e encerramento.</p>
+        <AuditPanel :key="refreshKey" entity-type="Mandate" :entity-id="mandate.id" :scope-label="mandate.code" />
+      </template>
     </template>
   </StateBlock>
 
@@ -285,6 +318,31 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* Barra de seções em largura total, como na política. */
+.mandate-tabs {
+  width: 100%;
+}
+
+.mandate-tabs .tab {
+  flex: 1 0 auto;
+  justify-content: center;
+}
+
+.alert-count {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 650;
+  text-align: center;
+}
+
+.audit-intro {
+  margin: 0 0 14px;
+}
+
 .kpi.outside {
   border-top-color: var(--danger);
 }

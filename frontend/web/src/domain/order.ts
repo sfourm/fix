@@ -36,11 +36,30 @@ export interface OrderTerms {
   premium: number | null;
   tradeDate: string;
   notes: string | null;
+  /** Venda de opção coberta; a descoberta é vedada (FORA). */
+  coveredSale: boolean;
+}
+
+/** Termos enviados ao registrar/editar: commodity só vale sem mandato; justificativa é obrigatória em desvio. */
+export interface OrderTermsInput extends OrderTerms {
+  commodity: Commodity | null;
+  justification: string | null;
+}
+
+/** Enquadramento calculado da boleta (FIX2: desvio não bloqueia — expõe). */
+export interface OrderCompliance {
+  status: 'Within' | 'Outside';
+  reason: string;
 }
 
 export interface Order {
   id: string;
-  mandateId: string;
+  /** HX-0001 */
+  code: string;
+  /** Nulo = boleta sem mandato (desvio sinalizado). */
+  mandateId: string | null;
+  /** MD-01 */
+  mandateCode: string | null;
   mandateTitle: string;
   counterpartyId: string;
   counterpartyName: string;
@@ -57,9 +76,26 @@ export interface Order {
   confirmationNote: string | null;
   /** Pendente há mais de 2 dias úteis. */
   confirmationOverdue: boolean;
+  /** Middle office que registrou a confirmação (nunca quem executou). */
+  confirmationBy: string | null;
+  compliance: OrderCompliance;
+  /** Mandato vinculado depois da execução: carimbo permanente. */
+  linkedAfterExecution: boolean;
+  exceedsMandate: boolean;
+  deviationNote: string | null;
 }
 
-/** Confirmation em aberto: boleta aprovada sem confirmation conferido. */
+/** Carimbos de desvio visíveis na boleta (FIX2 · I-01). */
+export function orderStamps(order: Order): { label: string; tone: 'danger' | 'warning' | 'info' }[] {
+  const stamps: { label: string; tone: 'danger' | 'warning' | 'info' }[] = [];
+  if (!order.mandateId) stamps.push({ label: 'sem mandato', tone: 'danger' });
+  if (order.linkedAfterExecution) stamps.push({ label: 'a posteriori', tone: 'warning' });
+  if (order.exceedsMandate) stamps.push({ label: 'estourou o mandato', tone: 'danger' });
+  if (order.compliance.status === 'Outside' && stamps.length === 0) stamps.push({ label: 'FORA', tone: 'danger' });
+  return stamps;
+}
+
+/** Confirmação em aberto: boleta aprovada sem confirmação conferida. */
 export const hasOpenConfirmation = (order: Order) => order.approval === 'Approved' && order.confirmation !== 'Confirmed';
 
 /** Termos em edição no formulário (preço ainda pode estar vazio). */

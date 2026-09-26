@@ -20,6 +20,8 @@ const NODE_H = 92;
 const GAP_X = 28;
 const GAP_Y = 76;
 const PAD = 28;
+/** Iniciais visíveis por grupo; o resto vira "+N" (nomes no tooltip). */
+const MAX_AVATARS = 3;
 
 // ---------- Arraste ----------
 interface Drag {
@@ -302,8 +304,8 @@ const initials = (id: string) =>
             </div>
             <div class="node-meta">
               <span class="avatars">
-                <span v-for="m in g.memberIds.slice(0, 4)" :key="m" class="av" :title="memberName(m)">{{ initials(m) }}</span>
-                <span v-if="g.memberIds.length > 4" class="av more">+{{ g.memberIds.length - 4 }}</span>
+                <span v-for="m in g.memberIds.slice(0, MAX_AVATARS)" :key="m" class="av" :title="memberName(m)">{{ initials(m) }}</span>
+                <span v-if="g.memberIds.length > MAX_AVATARS" class="av more" :title="g.memberIds.slice(MAX_AVATARS).map(memberName).join(', ')">+{{ g.memberIds.length - MAX_AVATARS }}</span>
                 <span v-if="!g.memberIds.length" class="muted small">sem membros</span>
               </span>
               <span class="rules small" :title="g.rules.map(ruleName).join(', ')">{{ g.rules.length }} cargo(s)</span>

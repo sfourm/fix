@@ -10,6 +10,7 @@ internal static class CounterpartyContractMapper
         var contract = new Contract.Counterparty
         {
             Id = counterparty.Id.ToString(),
+            Code = counterparty.Code,
             Name = counterparty.Name,
             Type = counterparty.Type.ToContract<Contract.CounterpartyType>(),
             IsHomologated = counterparty.IsHomologated,

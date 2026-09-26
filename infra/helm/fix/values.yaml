@@ -45,11 +45,14 @@ telemetry:
   otlpHttpEndpoint: ""   # BFF (ex.: http://otel-collector:4318)
 
 # Stack de observabilidade no cluster (mesma de observability/ no repositório): OTel Collector, Prometheus, Jaeger e Grafana.
-# Os dashboards vêm de observability/grafana/dashboards (copiados para files/dashboards ao empacotar o chart).
+# Os dashboards vêm de observability/grafana/dashboards (copiados para files/dashboards ao empacotar o chart, junto com
+# files/seed-dashboards.sh) e entram pela API do Grafana num Job pós-deploy: ficam editáveis e salvos pela interface.
 observability:
   enabled: false
   grafana:
     image: grafana/grafana:13.2.2
+    # Job que semeia os dashboards pela API após cada deploy (só sh + curl).
+    seedImage: curlimages/curl:8.17.0
     # Host público (ex.: grafana.fix.webpassos.com). O Jaeger fica em <host>/jaeger, só para quem está logado no Grafana.
     host: ""
     adminUser: admin

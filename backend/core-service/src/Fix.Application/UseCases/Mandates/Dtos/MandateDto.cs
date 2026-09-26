@@ -5,6 +5,7 @@ namespace Fix.Application.Mandates.Dtos;
 
 public sealed record MandateDto(
     Guid Id,
+    string Code,
     Guid PolicyId,
     string PolicyCode,
     string PolicyVersion,

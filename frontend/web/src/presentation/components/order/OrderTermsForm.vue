@@ -29,6 +29,7 @@ watch(
       if (type === 'Futures') {
         terms.value.optionKind = null;
         terms.value.premium = null;
+        terms.value.coveredSale = false;
       } else {
         terms.value.optionKind ??= 'Put';
       }
@@ -57,7 +58,7 @@ watch(
         <input id="order-tenor" v-model="terms.tenor" class="input" maxlength="16" placeholder="N27" required />
       </div>
       <div class="field">
-        <label for="order-trade-date">Data do trade</label>
+        <label for="order-trade-date">Data da operação</label>
         <input id="order-trade-date" v-model="terms.tradeDate" class="input" type="date" required />
       </div>
     </div>
@@ -93,9 +94,26 @@ watch(
       </template>
     </div>
 
+    <!-- Venda de opção: coberta (lastreada na produção/posição) é permitida até o teto; descoberta é vedada (FIX2 · I-08). -->
+    <label v-if="terms.type === 'Option' && terms.direction === 'Sell'" class="row covered">
+      <input v-model="terms.coveredSale" type="checkbox" />
+      <span>
+        Venda <strong>coberta</strong> (lastreada na produção ou numa posição)
+        <span class="muted small">— sem cobertura, a venda de opção é vedada pela política e fica FORA.</span>
+      </span>
+    </label>
+
     <div class="field">
       <label for="order-notes">Observações</label>
       <textarea id="order-notes" v-model="terms.notes" class="input" maxlength="1000" />
     </div>
   </div>
 </template>
+
+<style scoped>
+.covered {
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.92rem;
+}
+</style>

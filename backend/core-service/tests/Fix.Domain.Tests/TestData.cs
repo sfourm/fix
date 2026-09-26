@@ -13,6 +13,9 @@ internal static class TestData
     public static readonly Guid OrganizationId = Guid.NewGuid();
     public static readonly Guid UserId = Guid.NewGuid();
 
+    /// <summary>Middle office: outra pessoa, que confere o confirmation (segregação).</summary>
+    public static readonly Guid MiddleOfficeId = Guid.NewGuid();
+
     public static Policy ActivePolicy()
     {
         var policy = Policy.Create(
@@ -48,6 +51,7 @@ internal static class TestData
     {
         var policy = ActivePolicy();
         return Mandate.Issue(
+            1,
             policy,
             AxisOf(policy, RiskFactor.Price),
             MandateType.Pricing,
@@ -61,6 +65,7 @@ internal static class TestData
     {
         var counterparty = Counterparty.Create(
             OrganizationId,
+            1,
             Name.Create("Louis Dreyfus Company"),
             CounterpartyType.Trading,
             null,

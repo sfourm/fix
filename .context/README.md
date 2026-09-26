@@ -9,6 +9,7 @@ correspondente no mesmo PR.
 | Arquivo | Conteúdo |
 | --- | --- |
 | [produto.md](produto.md) | O que é o Fix, fluxo do FIX2, entidades do negócio e glossário |
+| [conformidade-fix2.md](conformidade-fix2.md) | O que atende, diverge ou falta frente ao onboarding FIX2 v60 (`example/FIX2_v60_onboarding_dev.pdf`) |
 | [acesso-e-permissoes.md](acesso-e-permissoes.md) | Multitenancy, organização interna FIX, owner/user, alçadas, roles de decisão e organograma |
 | [arquitetura.md](arquitetura.md) | Visão do sistema: aplicações, responsabilidades, fluxo de um request e decisões de arquitetura |
 | [core-service.md](core-service.md) | Backend .NET: camadas, fluxo de caso de uso, padrões de domínio, persistência, auditoria e erros |

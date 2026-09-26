@@ -38,6 +38,14 @@ internal sealed class PolicyConfiguration : IEntityTypeConfiguration<Policy>
             limits.Property(l => l.FinancialConcentrationMaxPct).HasPrecision(6, 2);
             limits.Property(l => l.FreightCeilingPct).HasPrecision(6, 2);
             limits.Property(l => l.CoveredCallMaxPct).HasPrecision(6, 2);
+            limits.Property(l => l.Contingency1MonthPct).HasPrecision(6, 2);
+            limits.Property(l => l.Contingency6MonthsPct).HasPrecision(6, 2);
+            limits.Property(l => l.Contingency12MonthsPct).HasPrecision(6, 2);
+            limits.Property(l => l.Contingency24MonthsPct).HasPrecision(6, 2);
+            limits.Property(l => l.Contingency36MonthsPct).HasPrecision(6, 2);
+            limits.Property(l => l.BuybackTriggerPct).HasPrecision(6, 2);
+            limits.Property(l => l.StressSigmas).HasPrecision(6, 2);
+            limits.Property(l => l.MixShiftMaxPp).HasPrecision(6, 2);
         });
 
         builder.HasIndex(p => new { p.OrganizationId, p.Code }).IsUnique();

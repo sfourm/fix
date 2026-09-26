@@ -174,5 +174,7 @@ public sealed class OrganizationTests
         Assert.NotEmpty(SystemRoles.Staff);
         Assert.DoesNotContain(SystemRoles.Staff, SystemRoles.Decisions.Contains);
         Assert.Contains(RoleCodes.EditOrganization, SystemRoles.Staff);
+        Assert.Contains(RoleCodes.UpdateUser, SystemRoles.Staff);
+        Assert.Contains(RoleCodes.ViewUser, SystemRoles.Staff);
     }
 }

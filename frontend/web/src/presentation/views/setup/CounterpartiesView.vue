@@ -105,10 +105,11 @@ onMounted(load);
       <div class="table-wrap">
         <table v-columns="'counterparties'" class="table">
           <thead>
-            <tr><th>Contraparte</th><th>Tipo</th><th>País</th><th>Limite nocional</th><th>Limite MtM</th><th>Situação</th><th /></tr>
+            <tr><th>Código</th><th>Contraparte</th><th>Tipo</th><th>País</th><th>Limite nocional</th><th>Limite MtM</th><th>Situação</th><th /></tr>
           </thead>
           <tbody>
             <tr v-for="c in data ?? []" :key="c.id">
+              <td class="num muted">{{ c.code }}</td>
               <td>
                 <strong>{{ c.name }}</strong>
                 <div v-if="c.document" class="muted small">{{ c.document }}</div>

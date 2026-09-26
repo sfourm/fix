@@ -12,6 +12,7 @@ internal static class MandateContractMapper
         var contract = new Contract.Mandate
         {
             Id = mandate.Id.ToString(),
+            Code = mandate.Code,
             PolicyId = mandate.PolicyId.ToString(),
             PolicyCode = mandate.PolicyCode,
             PolicyVersion = mandate.PolicyVersion,

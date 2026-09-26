@@ -23,6 +23,10 @@ onMounted(async () => {
       await router.replace(paths.mandate(m.policyId, m.id));
     } else {
       const o = await api.orders.get(props.id);
+      if (!o.mandateId) {
+        await router.replace(paths.orderWithoutMandate(o.id));
+        return;
+      }
       const m = await api.mandates.get(o.mandateId);
       await router.replace(paths.order(m.policyId, m.id, o.id));
     }

@@ -26,12 +26,15 @@ public static class SystemRoles
         [RoleCodes.UpdateOrder] = "Editar boletas",
         [RoleCodes.DeleteOrder] = "Excluir boletas pendentes ou rejeitadas",
         [RoleCodes.ApproveOrder] = "Aprovar boletas",
-        [RoleCodes.ManageConfirmation] = "Registrar e reconciliar confirmations (middle office)",
+        [RoleCodes.ManageConfirmation] = "Registrar e reconciliar confirmações (middle office)",
         [RoleCodes.SelfApprove] = "Alçada de emissão: operar sem passar pela fila de aprovação",
         [RoleCodes.ViewCounterparties] = "Visualizar contrapartes",
         [RoleCodes.ManageCounterparties] = "Cadastrar, homologar e limitar contrapartes",
-        [RoleCodes.EditOrganization] = "Editar o setup da companhia, membros e grupos",
-        [RoleCodes.ViewUsers] = "Visualizar membros e grupos",
+        [RoleCodes.EditOrganization] = "Editar o setup da companhia",
+        [RoleCodes.ViewUser] = "Visualizar membros, grupos e organograma",
+        [RoleCodes.CreateUser] = "Adicionar membros e criar grupos",
+        [RoleCodes.UpdateUser] = "Editar membros, grupos, organograma e cargos",
+        [RoleCodes.DeleteUser] = "Remover membros e excluir grupos",
     };
 
     public static readonly IReadOnlyList<string> All = [.. Descriptions.Keys];

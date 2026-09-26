@@ -17,6 +17,7 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Ignore(o => o.Quantity);
         builder.Ignore(o => o.ConsumedQuantity);
         builder.Ignore(o => o.CanBeDeleted);
+        builder.Ignore(o => o.Code);
 
         builder.Property(o => o.Type).HasConversion<string>().HasMaxLength(20);
         builder.Property(o => o.Direction).HasConversion<string>().HasMaxLength(10);
@@ -33,7 +34,16 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.DecisionNote).HasMaxLength(500);
         builder.Property(o => o.Confirmation).HasConversion<string>().HasMaxLength(20);
         builder.Property(o => o.ConfirmationNote).HasMaxLength(500);
+        builder.Property(o => o.DeviationNote).HasMaxLength(500);
 
+        builder.ComplexProperty(o => o.Compliance, compliance =>
+        {
+            compliance.Ignore(c => c.IsWithin);
+            compliance.Property(c => c.Status).HasConversion<string>().HasMaxLength(10);
+            compliance.Property(c => c.Reason).HasMaxLength(500).IsRequired();
+        });
+
+        builder.HasIndex(o => new { o.OrganizationId, o.Number }).IsUnique();
         builder.HasIndex(o => new { o.OrganizationId, o.MandateId, o.Approval });
         builder.HasIndex(o => new { o.OrganizationId, o.Confirmation });
         builder.HasOne<Organization>().WithMany().HasForeignKey(o => o.OrganizationId).OnDelete(DeleteBehavior.Restrict);

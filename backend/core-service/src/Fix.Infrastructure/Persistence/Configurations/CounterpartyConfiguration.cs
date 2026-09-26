@@ -21,6 +21,8 @@ internal sealed class CounterpartyConfiguration : IEntityTypeConfiguration<Count
         builder.Property(c => c.NotionalLimitUsd).HasPrecision(18, 2);
         builder.Property(c => c.MtmLimitUsd).HasPrecision(18, 2);
 
+        builder.Ignore(c => c.Code);
+        builder.HasIndex(c => new { c.OrganizationId, c.Number }).IsUnique();
         builder.HasIndex(c => new { c.OrganizationId, c.Name }).IsUnique();
         builder.HasOne<Organization>().WithMany().HasForeignKey(c => c.OrganizationId).OnDelete(DeleteBehavior.Restrict);
     }

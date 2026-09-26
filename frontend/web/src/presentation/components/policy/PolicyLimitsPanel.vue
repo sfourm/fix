@@ -51,6 +51,41 @@ const groups: { title: string; fields: { key: keyof PolicyLimits; label: string;
       { key: 'freightCeilingPct', label: 'Tarifa máxima sobre a referência de mercado', suffix: '%' },
     ],
   },
+  {
+    title: 'Contingência escalonada · reserva que nunca é vendida nem fixada',
+    fields: [
+      { key: 'contingency1MonthPct', label: 'Produção a até 1 mês', suffix: '%' },
+      { key: 'contingency6MonthsPct', label: 'Produção a até 6 meses', suffix: '%' },
+      { key: 'contingency12MonthsPct', label: 'Produção a até 12 meses', suffix: '%' },
+      { key: 'contingency24MonthsPct', label: 'Produção a até 24 meses', suffix: '%' },
+      { key: 'contingency36MonthsPct', label: 'Produção a 36 meses ou mais', suffix: '%' },
+    ],
+  },
+  {
+    title: 'Recompra e estresse · §11',
+    fields: [
+      { key: 'buybackTriggerPct', label: 'Recompra quando o vendido passa do novo disponível', suffix: '%' },
+      { key: 'buybackDeadlineBusinessDays', label: 'Prazo da recompra', suffix: 'dias úteis' },
+      { key: 'stressSigmas', label: 'Choque de estresse de caixa', suffix: 'σ' },
+      { key: 'stressDays', label: 'Horizonte do estresse', suffix: 'dias úteis' },
+    ],
+  },
+  {
+    title: 'Régua de fixação e mix',
+    fields: [
+      { key: 'pricingHotPercentile', label: 'Mercado "quente" a partir do percentil (FG/A)', suffix: 'p' },
+      { key: 'pricingColdPercentile', label: 'Mercado "frio" até o percentil (FG/A)', suffix: 'p' },
+      { key: 'mixShiftMaxPp', label: 'Virada de mix que exige rito', suffix: 'p.p.' },
+    ],
+  },
+  {
+    title: 'Controles',
+    fields: [
+      { key: 'confirmationDeadlineBusinessDays', label: 'Prazo da confirmação da contraparte', suffix: 'dias úteis' },
+      { key: 'registrationDeadlineDays', label: 'Registro da boleta após a execução (0 = D+0)', suffix: 'dias' },
+      { key: 'deviationReportHours', label: 'Reporte de desvio', suffix: 'horas' },
+    ],
+  },
 ];
 
 async function save() {

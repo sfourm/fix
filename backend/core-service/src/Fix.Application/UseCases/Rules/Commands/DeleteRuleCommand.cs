@@ -6,6 +6,6 @@ using Fix.Domain.AggregateRoots.Roles;
 namespace Fix.Application.Rules.Commands;
 
 /// <summary>Exclui a alçada, retirando-a de todos os membros e grupos que a tinham.</summary>
-[RequireRole(RoleCodes.EditOrganization)]
+[RequireRole(RoleCodes.UpdateUser)]
 public sealed record DeleteRuleCommand(Guid UserId, Guid OrganizationId, Guid Id)
     : ICommand, IOrganizationRequest;

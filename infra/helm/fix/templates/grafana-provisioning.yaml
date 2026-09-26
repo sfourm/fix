@@ -3,7 +3,7 @@
 {{- $prometheus := printf "%s-prometheus" $fullname }}
 {{- $jaeger := printf "%s-jaeger" $fullname }}
 {{- $grafana := printf "%s-grafana" $fullname }}
-# Provisionamento do Grafana (datasources e provedor de dashboards). Arquivo separado para o pod do Grafana
+# Provisionamento do Grafana (datasources). Arquivo separado para o pod do Grafana
 # reiniciar sozinho quando isto mudar (checksum/provisioning em observability.yaml): o Grafana só lê na inicialização.
 apiVersion: v1
 kind: ConfigMap
@@ -42,18 +42,6 @@ data:
           tracesToMetrics:
             datasourceUid: prometheus
             tags: [{ key: service.name, value: service_name }]
-  dashboards.yaml: |
-    apiVersion: 1
-    providers:
-      - name: FIX Dashboards
-        orgId: 1
-        folder: FIX
-        type: file
-        disableDeletion: false
-        editable: true
-        # Salvar pela interface grava no banco do Grafana (volume persistente); o JSON do repositório volta a valer
-        # quando mudar. Para manter uma edição: exporte para observability/grafana/dashboards e faça commit.
-        allowUiUpdates: true
-        options:
-          path: /etc/grafana/dashboards
+  # Dashboards não são provisionados por arquivo (o Grafana 12+ só deixaria baixar o JSON ao salvar): entram pela
+  # API com o Job grafana-dashboards-seed, que só cria o que não existe. Assim ficam editáveis e salvos no banco.
 {{- end }}

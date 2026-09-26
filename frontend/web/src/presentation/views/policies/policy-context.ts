@@ -3,13 +3,13 @@ import type { Mandate } from '@/domain/mandate';
 import type { Order } from '@/domain/order';
 import type { Policy } from '@/domain/policy';
 
-/** Trabalho em aberto da política: o que alimenta as abas de aprovações e confirmations e os contadores. */
+/** Trabalho em aberto da política: o que alimenta as abas de aprovações e confirmações e os contadores. */
 export interface PolicyWork {
   mandates: Mandate[];
   /** Mandatos e boletas aguardando decisão. */
   pendingMandates: Mandate[];
   pendingOrders: Order[];
-  /** Boletas aprovadas cujo confirmation não foi conferido: pendentes e divergentes/recusados. */
+  /** Boletas aprovadas cuja confirmação não foi conferida: pendentes e divergentes/recusados. */
   awaitingConfirmation: Order[];
   confirmationProblems: Order[];
 }
@@ -33,7 +33,7 @@ export function usePolicyContext(): PolicyContext {
   return ctx;
 }
 
-/** Contadores das abas (aprovações e confirmations em aberto). */
+/** Contadores das abas (aprovações e confirmações em aberto). */
 export function workCounts(work: Ref<PolicyWork | null>) {
   return {
     approvals: computed(() => (work.value ? work.value.pendingMandates.length + work.value.pendingOrders.length : 0)),

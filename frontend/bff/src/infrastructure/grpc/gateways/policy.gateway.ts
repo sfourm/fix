@@ -24,6 +24,7 @@ import type { Page } from '../../../cross-cutting/paging/page.js';
 import type { CoreClient } from '../core-client.js';
 import { toContractContext, toContractPage, toPage, type ContractPageInfo } from '../mappers/common.contract-mapper.js';
 import {
+  toContractLimits,
   toContractAxisInput,
   toContractBandInput,
   toContractInstrumentInput,
@@ -47,7 +48,7 @@ export class GrpcPolicyGateway implements PolicyGateway {
   }
 
   updateLimits({ context, id, limits }: UpdatePolicyLimitsCommand): Promise<PolicyDto> {
-    return this.policy('UpdatePolicyLimits', context, { id, limits });
+    return this.policy('UpdatePolicyLimits', context, { id, limits: toContractLimits(limits) });
   }
 
   submit({ context, id }: SubmitPolicyCommand): Promise<PolicyDto> {

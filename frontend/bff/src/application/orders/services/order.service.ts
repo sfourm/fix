@@ -1,4 +1,5 @@
 import { mapPage, type Page } from '../../../cross-cutting/paging/page.js';
+import type { LinkOrderMandateCommand } from '../commands/link-order-mandate.command.js';
 import type { ApproveOrderCommand } from '../commands/approve-order.command.js';
 import type { ConfirmOrderCommand } from '../commands/confirm-order.command.js';
 import type { DeleteOrderCommand } from '../commands/delete-order.command.js';
@@ -15,12 +16,13 @@ import type { GetOrderQuery } from '../queries/get-order.query.js';
 import type { ListOrdersQuery } from '../queries/list-orders.query.js';
 import type { OrderResponse } from '../responses/order.response.js';
 
-/** Boletas de hedge: aprovação (consome saldo do mandato) e confirmation do middle office. */
+/** Boletas de hedge: aprovação (consome saldo do mandato) e confirmação do middle office. */
 export class OrderService {
   constructor(private readonly gateway: OrderGateway) {}
 
   register = (command: RegisterOrderCommand) => this.respond(this.gateway.register(command));
   update = (command: UpdateOrderCommand) => this.respond(this.gateway.update(command));
+  link = (command: LinkOrderMandateCommand) => this.respond(this.gateway.link(command));
   approve = (command: ApproveOrderCommand) => this.respond(this.gateway.approve(command));
   reject = (command: RejectOrderCommand) => this.respond(this.gateway.reject(command));
   confirm = (command: ConfirmOrderCommand) => this.respond(this.gateway.confirm(command));

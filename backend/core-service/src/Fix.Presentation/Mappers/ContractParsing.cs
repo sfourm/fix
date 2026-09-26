@@ -34,6 +34,14 @@ internal static class ContractParsing
     public static DateOnly? ToOptionalDate(this string? value, string field) =>
         string.IsNullOrWhiteSpace(value) ? null : value.ToDate(field);
 
+    /// <summary>Instante ISO 8601 (com fuso; sem fuso vale UTC).</summary>
+    public static DateTimeOffset? ToOptionalMoment(this string? value, string field) =>
+        string.IsNullOrWhiteSpace(value)
+            ? null
+            : DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var moment)
+                ? moment.ToUniversalTime()
+                : throw new BadRequestException($"'{field}' deve ser uma data/hora ISO 8601.");
+
     public static string ToContract(this DateOnly date) => date.ToString(DateFormat, CultureInfo.InvariantCulture);
 
     public static string ToContract(this DateTimeOffset moment) => moment.ToString("O", CultureInfo.InvariantCulture);

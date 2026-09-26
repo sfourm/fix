@@ -3,7 +3,8 @@ import type { RequestContext } from '../../../cross-cutting/context/request-cont
 
 export interface RegisterOrderCommand {
   context: RequestContext;
-  mandateId: string;
+  /** Nulo = boleta sem mandato (exige justificativa nos termos). */
+  mandateId: string | null;
   counterpartyId: string;
   terms: OrderTermsInput;
 }

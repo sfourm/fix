@@ -5,7 +5,7 @@ using Fix.Domain.AggregateRoots.Roles;
 
 namespace Fix.Application.Organizations.Commands;
 
-[RequireRole(RoleCodes.EditOrganization)]
+[RequireRole(RoleCodes.DeleteUser)]
 public sealed record RemoveMemberCommand(Guid UserId, Guid OrganizationId, Guid MemberId)
     : ICommand, IOrganizationRequest;
 

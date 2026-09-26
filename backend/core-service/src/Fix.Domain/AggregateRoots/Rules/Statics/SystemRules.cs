@@ -12,7 +12,7 @@ public static class SystemRules
     public static readonly IReadOnlyList<Definition> All =
     [
         new(RuleCodes.SuperAdministrador, "Super administrador (FIX)", SystemRoles.All, Internal: true),
-        new(RuleCodes.Administrador, "Administrador (FIX)", [RoleCodes.ViewUsers], Internal: true),
+        new(RuleCodes.Administrador, "Administrador (FIX)", [RoleCodes.ViewUser], Internal: true),
         new(RuleCodes.Owner, "Owner", SystemRoles.All),
         new(RuleCodes.User, "Usuário", SystemRoles.ViewOnly),
     ];
@@ -33,7 +33,7 @@ public static class SystemRules
             RoleCodes.UpdateOrder,
             RoleCodes.ApproveOrder,
             RoleCodes.SelfApprove,
-            RoleCodes.ViewUsers,
+            RoleCodes.ViewUser,
         ]),
         new(RuleCodes.Operador, "Operador (Mesa)",
         [

@@ -21,7 +21,7 @@ import { useTrailStore } from '../../trail';
 import { policyContextKey, workCounts, type PolicyWork } from './policy-context';
 
 /**
- * Tela da política: raiz da cadeia 1:N. Cabeçalho, indicadores e abas; mandatos, aprovações e confirmations
+ * Tela da política: raiz da cadeia 1:N. Cabeçalho, indicadores e abas; mandatos, aprovações e confirmações
  * desta política ficam aqui dentro (as abas recebem a política e o trabalho em aberto por injeção).
  */
 const props = defineProps<{ policyId: string }>();
@@ -46,7 +46,7 @@ const refreshKey = ref(0);
 const canUpdate = computed(() => organization.can(Permission.UpdatePolicy));
 const editable = computed(() => !!loaded.value && isPolicyEditable(loaded.value) && canUpdate.value);
 
-// ---------- Trabalho em aberto da política (mandatos, aprovações, confirmations) ----------
+// ---------- Trabalho em aberto da política (mandatos, aprovações, confirmações) ----------
 const work = ref<PolicyWork | null>(null);
 
 async function reloadWork() {
@@ -54,7 +54,7 @@ async function reloadWork() {
   const canOrders = organization.can(Permission.ViewOrder);
   const mandates = canMandates ? (await api.mandates.list({ policyId: props.policyId, pageSize: 100 })).items : [];
   const ids = new Set(mandates.map((m) => m.id));
-  const mine = <T extends { mandateId: string }>(items: T[]) => items.filter((o) => ids.has(o.mandateId));
+  const mine = <T extends { mandateId: string | null }>(items: T[]) => items.filter((o) => o.mandateId !== null && ids.has(o.mandateId));
   const [pendingOrders, awaiting, divergent, refused] = canOrders && ids.size
     ? await Promise.all([
         api.orders.list({ approval: 'PendingApproval', pageSize: 100 }),
@@ -92,9 +92,10 @@ const tabs = computed(() => [
     : []),
   { to: paths.policy(props.policyId, 'approvals'), label: 'Aprovações', alert: counts.approvals.value },
   ...(organization.can(Permission.ViewOrder)
-    ? [{ to: paths.policy(props.policyId, 'confirmations'), label: 'Confirmations', alert: counts.confirmations.value }]
+    ? [{ to: paths.policy(props.policyId, 'confirmations'), label: 'Confirmações', alert: counts.confirmations.value }]
     : []),
   { to: paths.policy(props.policyId, 'history'), label: 'Versões' },
+  { to: paths.policy(props.policyId, 'audit'), label: 'Auditoria' },
 ]);
 const isActive = (tab: { to: string; exact?: boolean }) => (tab.exact ? route.path === tab.to : route.path.startsWith(tab.to));
 
@@ -229,9 +230,9 @@ onMounted(async () => {
           <small>{{ activeMandates }} ativo(s)</small>
         </RouterLink>
         <RouterLink class="kpi click" :class="{ attention: counts.approvals.value + counts.confirmations.value > 0 }" :to="paths.policy(policy.id, counts.approvals.value ? 'approvals' : 'confirmations')">
-          <span>Pendências</span>
+          <span>Em aberto</span>
           <strong>{{ work ? counts.approvals.value + counts.confirmations.value : '…' }}</strong>
-          <small>{{ counts.approvals.value }} aprovação(ões) · {{ counts.confirmations.value }} confirmation(s)</small>
+          <small>{{ counts.approvals.value }} aguardando aprovação · {{ counts.confirmations.value }} confirmação(ões) a conciliar</small>
         </RouterLink>
       </section>
 

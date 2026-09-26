@@ -23,7 +23,7 @@ const MUTED: [number, number, number] = [110, 110, 115];
 const LINE: [number, number, number] = [228, 228, 232];
 
 /** As fontes padrão do PDF só cobrem Latin-1: troca os símbolos fora dele. */
-const clean = (s: string | null | undefined) =>
+export const clean = (s: string | null | undefined) =>
   (s ?? '—')
     .replace(/[→]/g, '->')
     .replace(/[—–−]/g, '-')
