@@ -2,7 +2,8 @@
 
 Um nó EC2 pequeno com **k3s** (Kubernetes), **Helm**, **ingress-nginx**, **cert-manager** (HTTPS com Let's Encrypt) e
 **Flux** (GitOps), com a stack de observabilidade (OTel Collector, Prometheus, Jaeger e **Grafana**) no próprio cluster.
-A plataforma Fix (core-service, BFF, web, PostgreSQL, Redis, Elasticsearch) é instalada pelo chart `helm/fix`.
+A plataforma Fix (core-service, storage-service, BFF, web, PostgreSQL, Redis, Elasticsearch, MongoDB, RabbitMQ) é instalada
+pelo chart `helm/fix`; os arquivos da tela de Uploads ficam num bucket S3 criado pelo Terraform.
 
 **Como uma mudança chega ao cluster (GitOps):** o GitHub Actions testa e publica imagens e chart no **GHCR** (Packages do
 GitHub); o **Flux**, rodando no cluster, lê este repositório (`gitops/presentation`) e o GHCR e aplica sozinho. O GitHub
@@ -10,7 +11,7 @@ não tem credenciais da AWS e não acessa o cluster. O cluster também fica disp
 
 ```
 infra/
-├── terraform/          # VPC, EC2 + EIP, security group, IAM do nó, segredos no SSM, bootstrap (k3s, ingress, cert-manager, Flux)
+├── terraform/          # VPC, EC2 + EIP, security group, IAM do nó, bucket S3 dos uploads, segredos no SSM, bootstrap
 ├── helm/fix/           # chart da plataforma
 ├── gitops/
 │   ├── presentation/   # o que o cluster aplica: HelmRelease (versão do chart + values do ambiente)
@@ -25,7 +26,9 @@ infra/
 | Código, imagens, chart | Repositório → GHCR (pipeline) | Push na `main` |
 | Versão do chart e values do ambiente (domínios, HTTPS, observabilidade) | `infra/gitops/presentation/fix.yaml` | Push na `main` (o Flux aplica em ~2 min) |
 | Dashboards do Grafana | `observability/grafana/dashboards/*.json` | Push na `main` (entram no próximo chart) |
-| Segredos (PostgreSQL, sessão, super admin, Grafana, e-mail do Let's Encrypt) | SSM Parameter Store (Terraform) | `terraform apply` + `sudo fix-sync` no nó |
+| Segredos (PostgreSQL, sessão, super admin, Grafana, e-mail do Let's Encrypt, chave do bucket S3) | SSM Parameter Store (Terraform) | `terraform apply` + `sudo fix-sync` no nó |
+| Bucket S3 dos uploads (`fix-<ambiente>-files-<conta>`) e usuário IAM restrito a ele | `infra/terraform/s3.tf` | `terraform apply` (`terraform output files_bucket`) |
+| Senhas internas do MongoDB e RabbitMQ | Geradas pelo chart (Secret `fix-storage-secrets`, preservado nos upgrades) | — |
 | Máquina, rede, DNS de saída (outputs) | `infra/terraform` | `terraform apply` |
 
 ## Custo e dimensionamento
@@ -117,6 +120,9 @@ Os domínios aparecem em dois lugares: `infra/gitops/presentation/fix.yaml` (o q
 (outputs e DNS). Mantenha iguais.
 
 ## Segurança
+
+- Bucket S3 dos uploads: privado (block public access), criptografado (AES256), só HTTPS. O storage-service usa um usuário IAM
+  que só enxerga esse bucket (os pods não alcançam a role do nó); o navegador baixa os arquivos pelo BFF, nunca direto do S3.
 
 - Abertas ao mundo: só 80/443 (ingress-nginx). 6443 (API do Kubernetes) e 22 apenas para `admin_cidrs`; vazio = fechadas.
 - O GitHub não tem acesso à AWS nem ao cluster: o cluster **puxa** do repositório e do GHCR (públicos, só leitura).
