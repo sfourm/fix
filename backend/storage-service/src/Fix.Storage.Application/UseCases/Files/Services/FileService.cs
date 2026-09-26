@@ -114,6 +114,12 @@ internal sealed class FileService(
         return new FileDownloadUrlDto(url, expiresAt);
     }
 
+    public async Task<FileContentDto> GetFileContentAsync(GetFileContentQuery query, CancellationToken cancellationToken)
+    {
+        var file = await GetVisibleAsync(query.OrganizationId, query.UserId, query.Id, cancellationToken);
+        return new FileContentDto(file.FileName, file.ContentType, await objectStorage.GetAsync(file.StorageKey, cancellationToken));
+    }
+
     // ---------- Helpers ----------
 
     /// <summary>Arquivo da organização que o usuário pode ver (de outra organização responde como inexistente).</summary>

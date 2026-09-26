@@ -13,6 +13,8 @@ export function createFileApi(http: HttpClient) {
     template: (kind: FileKind) => http.get<FileTemplate>(`/files/templates/${kind}`),
     templateCsv: (kind: FileKind) => http.blob(`/files/templates/${kind}/csv`),
     downloadUrl: (id: string) => http.get<{ url: string; expiresAt: string }>(`/files/${id}/download`),
+    /** Arquivo original entregue pelo BFF (o S3 do cluster não é público). */
+    content: (id: string) => http.blob(`/files/${id}/content`),
     upload: (kind: FileKind, file: File) => http.upload<UploadedFile>('/files', file, { kind }),
     /** Progresso ao vivo (SSE): de um arquivo ou de todos os que o usuário pode ver. */
     events: (fileId: string | null, onProgress: (event: FileProgress) => void, signal: AbortSignal, onOpen?: () => void) =>

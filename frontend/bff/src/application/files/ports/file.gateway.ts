@@ -1,5 +1,6 @@
 import type { Page } from '../../../cross-cutting/paging/page.js';
 import type { UploadFileCommand } from '../commands/upload-file.command.js';
+import type { FileContentDto } from '../dtos/file-content.dto.js';
 import type { FileDownloadUrlDto } from '../dtos/file-download-url.dto.js';
 import type { FileKindSummaryDto } from '../dtos/file-kind-summary.dto.js';
 import type { FileLineDto } from '../dtos/file-line.dto.js';
@@ -21,4 +22,6 @@ export interface FileGateway {
   summary(query: GetFileSummaryQuery): Promise<FileKindSummaryDto[]>;
   template(query: GetFileTemplateQuery): Promise<FileTemplateDto>;
   downloadUrl(query: GetFileDownloadUrlQuery): Promise<FileDownloadUrlDto>;
+  /** Conteúdo do arquivo original (o S3 do cluster não é acessível pelo navegador). */
+  content(query: GetFileQuery): Promise<FileContentDto>;
 }

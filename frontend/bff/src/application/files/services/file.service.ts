@@ -1,6 +1,7 @@
 import { AppError } from '../../../cross-cutting/errors/app-error.js';
 import { mapPage, type Page } from '../../../cross-cutting/paging/page.js';
 import type { UploadFileCommand } from '../commands/upload-file.command.js';
+import type { FileContentDto } from '../dtos/file-content.dto.js';
 import type { FileDownloadUrlDto } from '../dtos/file-download-url.dto.js';
 import type { FileProgressDto } from '../dtos/file-progress.dto.js';
 import {
@@ -66,6 +67,11 @@ export class FileService {
 
   downloadUrl(query: GetFileDownloadUrlQuery): Promise<FileDownloadUrlDto> {
     return this.gateway.downloadUrl(query);
+  }
+
+  /** Arquivo original, entregue pelo BFF (o storage confere as regras de quem pode ver). */
+  content(query: GetFileQuery): Promise<FileContentDto> {
+    return this.gateway.content(query);
   }
 
   /**

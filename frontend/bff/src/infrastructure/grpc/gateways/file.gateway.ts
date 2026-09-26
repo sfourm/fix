@@ -1,4 +1,5 @@
 import type { UploadFileCommand } from '../../../application/files/commands/upload-file.command.js';
+import type { FileContentDto } from '../../../application/files/dtos/file-content.dto.js';
 import type { FileDownloadUrlDto } from '../../../application/files/dtos/file-download-url.dto.js';
 import type { FileKindSummaryDto } from '../../../application/files/dtos/file-kind-summary.dto.js';
 import type { FileLineDto } from '../../../application/files/dtos/file-line.dto.js';
@@ -78,6 +79,11 @@ export class GrpcFileGateway implements FileGateway {
 
   async downloadUrl({ context, id }: GetFileDownloadUrlQuery): Promise<FileDownloadUrlDto> {
     return toFileDownloadUrlDto(await this.call<{ url: string; expiresAt: string }>('GetFileDownloadUrl', context, { id }));
+  }
+
+  async content({ context, id }: GetFileQuery): Promise<FileContentDto> {
+    const response = await this.call<{ fileName: string; contentType: string; content: Buffer }>('GetFileContent', context, { id });
+    return { fileName: response.fileName, contentType: response.contentType, content: Buffer.from(response.content ?? []) };
   }
 
   private call<T>(method: string, context: RequestContext, request: object): Promise<T> {

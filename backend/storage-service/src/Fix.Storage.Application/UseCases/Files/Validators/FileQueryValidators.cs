@@ -13,6 +13,11 @@ internal sealed class GetFileDownloadUrlValidator : AbstractValidator<GetFileDow
     public GetFileDownloadUrlValidator() => RuleFor(x => x.Id).NotEmpty();
 }
 
+internal sealed class GetFileContentValidator : AbstractValidator<GetFileContentQuery>
+{
+    public GetFileContentValidator() => RuleFor(x => x.Id).NotEmpty();
+}
+
 internal sealed class ListFilesValidator : AbstractValidator<ListFilesQuery>
 {
     public ListFilesValidator() => RuleFor(x => x.Kind).IsInEnum().When(x => x.Kind is not null);

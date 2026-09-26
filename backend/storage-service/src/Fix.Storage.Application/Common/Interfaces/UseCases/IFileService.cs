@@ -24,4 +24,6 @@ public interface IFileService
     Task<FileTemplateDto> GetFileTemplateAsync(GetFileTemplateQuery query, CancellationToken cancellationToken);
 
     Task<FileDownloadUrlDto> GetFileDownloadUrlAsync(GetFileDownloadUrlQuery query, CancellationToken cancellationToken);
+
+    Task<FileContentDto> GetFileContentAsync(GetFileContentQuery query, CancellationToken cancellationToken);
 }

@@ -81,8 +81,10 @@ watch(filter, () => {
 
 async function download() {
   try {
-    const { url } = await api.files.downloadUrl(fileId);
-    Object.assign(document.createElement('a'), { href: url, rel: 'noopener' }).click();
+    const blob = await api.files.content(fileId);
+    const url = URL.createObjectURL(blob);
+    Object.assign(document.createElement('a'), { href: url, download: file.value?.fileName ?? 'arquivo' }).click();
+    URL.revokeObjectURL(url);
   } catch (e) {
     toast.error(errorMessage(e));
   }

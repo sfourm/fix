@@ -91,6 +91,12 @@ export function fileRoutes(files: FileService): Router {
     res.json(await files.listLines({ context: organizationContext(req), fileId: id, ...query }));
   });
 
+  router.get('/:id/content', async (req, res) => {
+    const { id } = parse(idParam, req.params);
+    const file = await files.content({ context: organizationContext(req), id });
+    res.type(file.contentType || 'application/octet-stream').attachment(file.fileName).send(file.content);
+  });
+
   router.get('/:id/download', async (req, res) => {
     const { id } = parse(idParam, req.params);
     res.json(await files.downloadUrl({ context: organizationContext(req), id }));

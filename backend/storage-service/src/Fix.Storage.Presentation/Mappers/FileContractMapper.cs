@@ -80,6 +80,13 @@ internal static class FileContractMapper
         ExampleCsv = ByteString.CopyFrom(template.ExampleCsv),
     };
 
+    public static Contract.FileContent ToContract(this FileContentDto content) => new()
+    {
+        FileName = content.FileName,
+        ContentType = content.ContentType,
+        Content = ByteString.CopyFrom(content.Content),
+    };
+
     public static Contract.FileDownloadUrl ToContract(this FileDownloadUrlDto download) => new()
     {
         Url = download.Url,

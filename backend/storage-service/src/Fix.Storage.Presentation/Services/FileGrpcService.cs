@@ -90,4 +90,10 @@ internal sealed class FileGrpcService(
             new GetFileDownloadUrlQuery(request.Context.ToUserId(), request.Context.ToOrganizationId(), request.Id.ToGuid("id")),
             fileService.GetFileDownloadUrlAsync,
             context.CancellationToken)).ToContract();
+
+    public override async Task<FileContent> GetFileContent(FileIdRequest request, ServerCallContext context) =>
+        (await validation.RunAsync(
+            new GetFileContentQuery(request.Context.ToUserId(), request.Context.ToOrganizationId(), request.Id.ToGuid("id")),
+            fileService.GetFileContentAsync,
+            context.CancellationToken)).ToContract();
 }
