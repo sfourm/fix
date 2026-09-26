@@ -10,6 +10,8 @@
 
 - **core-service** compila os `.proto` como servidor (`Fix.Presentation.csproj`: `Protobuf Include="..\..\..\..\protos\**\*.proto"`,
   namespace gerado `Fix.Contracts.V1`).
+- **storage-service** compila os `.proto` na Infrastructure: os do core como cliente (executa as linhas) e `files.proto`
+  (`FileService`) como servidor.
 - **BFF** carrega os `.proto` em runtime (`GRPC_CONTRACTS=files`, `PROTOS_DIR` padrão = `protos/` do repositório) ou pergunta
   ao core via server reflection (`GRPC_CONTRACTS=reflection`).
 

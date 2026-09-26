@@ -6,7 +6,8 @@
 fix/
 ├── protos/                  # contratos gRPC (fonte única)
 ├── backend/
-│   └── core-service/        # .NET 10 — regras de negócio, autorização, persistência (gRPC)
+│   ├── core-service/        # .NET 10 — regras de negócio, autorização, persistência (gRPC)
+│   └── storage-service/     # .NET 10 — uploads: S3, MongoDB, RabbitMQ; executa as linhas no core (gRPC)
 ├── frontend/
 │   ├── bff/                 # Node.js + TypeScript + Express — autenticação, REST para o web, dashboards/filtros/pesquisa
 │   └── web/                 # Vue 3 + Vite + Pinia — interface
@@ -24,7 +25,9 @@ fix/
 ```
 Web (Vue) ──REST: Bearer + X-Organization-Id──▶ BFF (Node) ──gRPC: RequestContext{user_id, organization_id}──▶ core-service (.NET) ──▶ PostgreSQL
                                                  ├── Elasticsearch (dashboards e filtros salvos)
-                                                 └── Redis (cache de visualização)
+                                                 ├── Redis (cache de visualização)
+                                                 └──gRPC──▶ storage-service ──▶ S3 · MongoDB · RabbitMQ ──gRPC──▶ core-service
+                                                     (progresso: RabbitMQ file.progress ──▶ BFF ──SSE──▶ Web)
 
 Todos ──OTLP──▶ OTel Collector ──▶ Jaeger (traces) / Prometheus (métricas) ──▶ Grafana
 ```
@@ -42,6 +45,7 @@ Todos ──OTLP──▶ OTel Collector ──▶ Jaeger (traces) / Prometheus 
 | --- | --- | --- |
 | **web** | Telas, navegação, estado de UI, rótulos pt-BR | Regra de negócio; decidir permissão (só esconde ações) |
 | **BFF** | Sessão (JWT HS256 própria), tenant do request, REST, validação de formato, **dashboards, filtros salvos e pesquisa**, cache | Regras do domínio FIX |
+| **storage-service** | Arquivos enviados (S3), linhas e resultado (MongoDB), processamento assíncrono (RabbitMQ) | Regra de negócio: cada linha vira uma chamada ao core, que valida e autoriza como numa tela |
 | **core-service** | Regras de negócio, **autorização por roles na base**, persistência, auditoria/timeline | Validar token (é gRPC interno e confia no `user_id` do contexto); conhecer dashboards/filtros |
 
 ## Decisões de arquitetura
@@ -65,6 +69,10 @@ Todos ──OTLP──▶ OTel Collector ──▶ Jaeger (traces) / Prometheus 
 | Web (Vite, proxy `/api` → BFF) | 5173 |
 | BFF | 3000 |
 | core-service (gRPC, HTTP/2) | 5098 |
+| storage-service (gRPC, HTTP/2) | 5099 |
+| RabbitMQ (AMQP / painel) | 5672 / 15672 |
+| MongoDB (storage) | 27018 |
+| S3 local (RustFS) | 9000 |
 | PostgreSQL | 5432 |
 | Elasticsearch | 9200 |
 | Redis | 6379 |

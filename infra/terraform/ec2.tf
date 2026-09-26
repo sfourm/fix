@@ -77,6 +77,10 @@ resource "aws_instance" "node" {
     aws_ssm_parameter.ghcr_username,
     aws_ssm_parameter.ghcr_token,
     aws_ssm_parameter.kubeconfig,
+    aws_ssm_parameter.s3_bucket,
+    aws_ssm_parameter.s3_region,
+    aws_ssm_parameter.s3_access_key,
+    aws_ssm_parameter.s3_secret_key,
   ]
 }
 

@@ -29,6 +29,8 @@ jobs:
         include:
           - component: core-service
             dockerfile: backend/core-service/Dockerfile
+          - component: storage-service
+            dockerfile: backend/storage-service/Dockerfile
           - component: bff
             dockerfile: frontend/bff/Dockerfile
           - component: web

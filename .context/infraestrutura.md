@@ -13,6 +13,7 @@ Repositório: infra/gitops/<ambiente> (HelmRelease) ◀── lê a cada 1 min �
 Internet ──80/443──▶ EC2 (EIP) ─▶ ServiceLB do k3s ─▶ ingress-nginx ─▶ /api → BFF · / → web ◀──────┘
                                                                         BFF → core-service (gRPC) → PostgreSQL
                                                                         BFF → Redis · Elasticsearch
+                                                                        BFF → storage-service (gRPC) → S3 (AWS) · MongoDB · RabbitMQ
 Seu kubectl ──6443 (admin_cidrs) ou túnel SSM──▶ API do k3s (contexto fix-<ambiente>)
 ```
 
@@ -30,12 +31,18 @@ Seu kubectl ──6443 (admin_cidrs) ou túnel SSM──▶ API do k3s (contexto
 | Imagem | Base | Porta | Observações |
 | --- | --- | --- | --- |
 | `core-service` | `dotnet/sdk:10.0` → `dotnet/aspnet:10.0` | 5098 (h2c) | Usuário não-root `$APP_UID`; `ASPNETCORE_ENVIRONMENT=Production` |
+| `storage-service` | `dotnet/sdk:10.0` → `dotnet/aspnet:10.0` | 5099 (h2c) | Uploads; compila `protos/` na Infrastructure |
 | `bff` | `node:22-alpine` | 3000 | `npm prune --omit=dev`; protos em `/app/protos`; roda com `--import ./dist/instrumentation.js` |
 | `web` | `node:22-alpine` → `nginx-unprivileged` | 8080 | SPA com fallback para `index.html`, `/healthz`; chama a API em `/api` (mesmo origin) |
 
 ## Chart `fix`
 
-- Nomes: `<release>-<componente>` (`fix-core-service`, `fix-bff`, `fix-web`, `fix-postgres`, `fix-redis`, `fix-elasticsearch`).
+- Nomes: `<release>-<componente>` (`fix-core-service`, `fix-storage-service`, `fix-bff`, `fix-web`, `fix-postgres`, `fix-redis`,
+  `fix-elasticsearch`, `fix-mongodb`, `fix-rabbitmq`; `fix-s3` só com `objectStorage.provider: internal`).
+- **Uploads**: arquivos no bucket S3 do Terraform (`s3.tf`: privado, AES256, só HTTPS, usuário IAM restrito ao bucket —
+  os pods não alcançam as credenciais do nó); `s3-bucket`, `s3-region`, `s3-access-key`, `s3-secret-key` chegam ao
+  `fix-secrets` pelo `fix-sync`. Senhas internas do Mongo/RabbitMQ: Secret `fix-storage-secrets`, gerado pelo chart no
+  primeiro deploy e preservado (`lookup` + `resource-policy: keep`). Ingress aceita corpo de até 25 MB (uploads de 20 MB).
 - Imagem: `<image.registry>/<componente>:<tag>`, com `tag` = `image.tag` ou, por padrão, a **appVersion** do chart. O pipeline
   publica o chart com `appVersion=<sha>`: cada versão do chart instala as imagens geradas no mesmo build (Packages do GitHub).
 - Segredos vêm do Secret `fix-secrets` (`postgres-password`, `session-secret`, `admin-email`, `admin-password`,
@@ -77,6 +84,8 @@ bootstrap só valem com `terraform apply -replace=aws_instance.node` (recria o c
 - Upgrade com remediação: duas falhas seguidas voltam para a versão anterior.
 - O Flux assume o release `fix` existente sem reinstalar (dados preservados) — testado.
 - `fix-sync` (no nó) é a única ponte com a AWS: Secret `fix-secrets`, ClusterIssuer e, opcional, credencial do GHCR.
+  O script é gravado pelo user-data (ignorado depois da criação): mudou o template? Atualize o nó existente com
+  `aws ssm send-command` (o mesmo conteúdo renderizado em `/usr/local/bin/fix-sync`) e rode-o.
 
 ## Regras
 

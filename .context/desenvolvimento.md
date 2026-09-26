@@ -9,6 +9,9 @@ cd observability && docker compose up -d                                        
 # 1. Banco + core
 cd backend/core-service && docker compose up -d && dotnet run --project src/Fix.Presentation     # PostgreSQL :5432 (fix/fix), gRPC :5098
 
+# 1b. Uploads (outro terminal; opcional)
+cd backend/storage-service && docker compose up -d && dotnet run --project src/Fix.Storage.Presentation  # RabbitMQ, Mongo :27018, S3 :9000, gRPC :5099
+
 # 2. BFF (outro terminal)
 cd frontend/bff && docker compose up -d && npm install && npm run dev                          # Elasticsearch :9200, Redis :6379, BFF :3000
 
@@ -24,6 +27,7 @@ Em Development o core aplica migrations e seeds no startup, incluindo a organiza
 | Projeto | Comando | O que cobre |
 | --- | --- | --- |
 | core-service | `dotnet test` | Regras de domínio (xUnit) |
+| storage-service | `dotnet test Fix.Storage.slnx` | Modelos das planilhas, leitores CSV/XLSX/XML, valores pt-BR, processamento das linhas |
 | BFF | `npm test` · `npm run typecheck` | Domínio de dashboards/filtros e motor de pesquisa (node:test) · tipos |
 | web | `npm run typecheck` · `npm run build` | Tipos (vue-tsc) e build |
 

@@ -22,7 +22,8 @@ ingress:
     clusterIssuer: letsencrypt
     secretName: fix-tls
   annotations:
-    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    # Uploads de até 20 MB (storage-service) + folga.
+    nginx.ingress.kubernetes.io/proxy-body-size: "25m"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
 
 secrets:
@@ -133,3 +134,51 @@ elasticsearch:
   resources:
     requests: { cpu: 100m, memory: 768Mi }
     limits: { memory: 1Gi }
+
+# ---------- Uploads: storage-service (gRPC) + MongoDB, RabbitMQ e S3 compatível (RustFS) ----------
+# As credenciais internas desses serviços são geradas pelo chart no primeiro deploy (Secret <release>-storage-secrets,
+# preservado nos upgrades); não precisam de SSM.
+
+storageService:
+  replicas: 1
+  port: 5099
+  # Linhas executadas ao mesmo tempo no core (1 = em ordem, sem disputa na numeração de mandatos e boletas).
+  linePrefetch: 1
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 384Mi }
+
+mongodb:
+  image: mongo:8.2
+  database: fix_storage
+  username: fix
+  # Cache do WiredTiger (padrão seria ~50% da RAM do nó).
+  cacheSizeGB: 0.25
+  storage: 2Gi
+  storageClass: ""
+  resources:
+    requests: { cpu: 20m, memory: 160Mi }
+    limits: { memory: 512Mi }
+
+rabbitmq:
+  image: rabbitmq:4.2-alpine
+  username: fix
+  storage: 1Gi
+  storageClass: ""
+  resources:
+    requests: { cpu: 20m, memory: 128Mi }
+    limits: { memory: 384Mi }
+
+# Arquivos originais dos uploads (o navegador baixa pelo BFF, nunca direto do S3).
+objectStorage:
+  # aws      = bucket S3 criado pelo Terraform (infra/terraform/s3.tf); bucket, região e chave vêm do Secret fix-secrets
+  #            (s3-bucket, s3-region, s3-access-key, s3-secret-key), gravado pelo fix-sync a partir do SSM.
+  # internal = S3 compatível (RustFS) dentro do cluster, com o bucket abaixo (testes e clusters sem AWS).
+  provider: internal
+  image: rustfs/rustfs:1.0.0
+  bucket: fix-files
+  storage: 5Gi
+  storageClass: ""
+  resources:
+    requests: { cpu: 20m, memory: 64Mi }
+    limits: { memory: 256Mi }

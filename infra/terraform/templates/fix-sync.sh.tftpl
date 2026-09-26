@@ -1,6 +1,6 @@
 #!/bin/bash
 # Sincroniza no cluster o que vem da AWS (SSM Parameter Store, ${ssm_prefix}/*) e não pode ficar no repositório:
-# Secret fix-secrets (senhas), ClusterIssuer do Let's Encrypt (e-mail) e, opcional, login no GHCR (pacotes privados).
+# Secret fix-secrets (senhas e o bucket S3 dos uploads), ClusterIssuer do Let's Encrypt (e-mail) e, opcional, login no GHCR (pacotes privados).
 # O deploy da aplicação é feito pelo Flux a partir do repositório (infra/gitops); este script não instala o chart.
 # Roda no bootstrap do nó; rode de novo (sudo fix-sync) depois de trocar um segredo no SSM.
 set -euo pipefail
@@ -24,6 +24,10 @@ kubectl -n fix create secret generic fix-secrets \
   --from-literal=admin-email="$(param admin-email)" \
   --from-literal=admin-password="$(param admin-password)" \
   --from-literal=grafana-admin-password="$(param grafana-admin-password)" \
+  --from-literal=s3-bucket="$(param s3-bucket)" \
+  --from-literal=s3-region="$(param s3-region)" \
+  --from-literal=s3-access-key="$(param s3-access-key)" \
+  --from-literal=s3-secret-key="$(param s3-secret-key)" \
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
 # Emissor Let's Encrypt (HTTP-01 pelo ingress-nginx); e-mail opcional ("-" = sem e-mail)

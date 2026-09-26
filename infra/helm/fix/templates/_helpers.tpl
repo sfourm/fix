@@ -49,6 +49,12 @@ imagePullSecrets:
 {{- define "fix.redisHost" -}}{{ include "fix.fullname" . }}-redis{{- end -}}
 {{- define "fix.elasticsearchHost" -}}{{ include "fix.fullname" . }}-elasticsearch{{- end -}}
 {{- define "fix.coreHost" -}}{{ include "fix.fullname" . }}-core-service{{- end -}}
+{{- define "fix.storageHost" -}}{{ include "fix.fullname" . }}-storage-service{{- end -}}
+{{- define "fix.mongoHost" -}}{{ include "fix.fullname" . }}-mongodb{{- end -}}
+{{- define "fix.rabbitmqHost" -}}{{ include "fix.fullname" . }}-rabbitmq{{- end -}}
+{{- define "fix.s3Host" -}}{{ include "fix.fullname" . }}-s3{{- end -}}
+{{/* Credenciais internas do storage (Mongo, RabbitMQ, S3): geradas pelo chart, ver storage-secrets.yaml. */}}
+{{- define "fix.storageSecretsName" -}}{{ include "fix.fullname" . }}-storage-secrets{{- end -}}
 
 {{/* Telemetria: ligada explicitamente ou quando a stack de observabilidade roda no cluster. */}}
 {{- define "fix.telemetryEnabled" -}}

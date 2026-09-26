@@ -19,6 +19,11 @@ output "dns_records" {
   value       = { for h in compact([local.host, var.enable_observability ? local.grafana_host : ""]) : h => aws_eip.node.public_ip }
 }
 
+output "files_bucket" {
+  description = "Bucket S3 dos arquivos da tela de Uploads (storage-service)."
+  value       = aws_s3_bucket.files.bucket
+}
+
 output "public_ip" {
   description = "IP elástico do nó."
   value       = aws_eip.node.public_ip

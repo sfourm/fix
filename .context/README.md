@@ -13,6 +13,7 @@ correspondente no mesmo PR.
 | [acesso-e-permissoes.md](acesso-e-permissoes.md) | Multitenancy, organização interna FIX, owner/user, alçadas, roles de decisão e organograma |
 | [arquitetura.md](arquitetura.md) | Visão do sistema: aplicações, responsabilidades, fluxo de um request e decisões de arquitetura |
 | [core-service.md](core-service.md) | Backend .NET: camadas, fluxo de caso de uso, padrões de domínio, persistência, auditoria e erros |
+| [storage-service.md](storage-service.md) | Uploads: tipos, modelos das planilhas, fluxo assíncrono (S3, MongoDB, RabbitMQ) e progresso ao vivo |
 | [contratos-grpc.md](contratos-grpc.md) | `protos/`: organização, regras e como evoluir contratos |
 | [bff.md](bff.md) | BFF Node.js: camadas, autenticação, dashboards/filtros/pesquisa, cache e integração gRPC |
 | [web.md](web.md) | Web Vue 3: camadas, navegação, permissões, componentes e gráficos |
@@ -25,7 +26,8 @@ correspondente no mesmo PR.
 - **Produto**: plataforma multitenant de gestão de riscos de commodities (modelo FIX2):
   `Setup da companhia → Política de riscos → Mandatos → Boletas de hedge → Confirmation`.
 - **Aplicações**: `frontend/web` (Vue) → `frontend/bff` (Node, REST) → `backend/core-service` (.NET, gRPC) → PostgreSQL.
-  O BFF também usa Elasticsearch (dashboards e filtros) e Redis (cache). Tudo emite telemetria para `observability/`.
+  O BFF também usa Elasticsearch (dashboards e filtros) e Redis (cache). Uploads: `backend/storage-service` (.NET, gRPC) com
+  S3, MongoDB e RabbitMQ, executando cada linha no core. Tudo emite telemetria para `observability/`.
 - **Regra de ouro**: regra de negócio e autorização ficam no **core**; autenticação, tenant do request e preferências de
   visualização (dashboards, filtros, pesquisa) ficam no **BFF**; o **web** só apresenta.
 - **Idioma**: produto e mensagens em português do Brasil; código e identificadores em inglês; comentários e docs em português.

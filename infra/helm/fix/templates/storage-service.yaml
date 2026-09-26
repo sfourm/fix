@@ -1,0 +1,135 @@
+{{- $name := include "fix.storageHost" . }}
+{{- $s := .Values.storageService }}
+{{- $secrets := include "fix.storageSecretsName" . }}
+{{- $aws := eq .Values.objectStorage.provider "aws" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "fix.labels" (dict "ctx" . "component" "storage-service") | nindent 4 }}
+spec:
+  selector:
+    {{- include "fix.selectorLabels" (dict "ctx" . "component" "storage-service") | nindent 4 }}
+  ports:
+    - name: grpc
+      port: {{ $s.port }}
+      targetPort: grpc
+      appProtocol: kubernetes.io/h2c
+---
+# storage-service: uploads (gRPC interno, só o BFF acessa). Grava no S3 e no MongoDB, processa as linhas pelo RabbitMQ e
+# executa cada linha no core-service.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "fix.labels" (dict "ctx" . "component" "storage-service") | nindent 4 }}
+spec:
+  replicas: {{ $s.replicas }}
+  selector:
+    matchLabels:
+      {{- include "fix.selectorLabels" (dict "ctx" . "component" "storage-service") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "fix.selectorLabels" (dict "ctx" . "component" "storage-service") | nindent 8 }}
+    spec:
+      {{- include "fix.pullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+      initContainers:
+        - name: wait-dependencies
+          image: busybox:1.37
+          securityContext: { runAsUser: 65534, runAsGroup: 65534, runAsNonRoot: true, allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z {{ include "fix.mongoHost" . }} 27017; do echo aguardando mongodb; sleep 2; done
+              until nc -z {{ include "fix.rabbitmqHost" . }} 5672; do echo aguardando rabbitmq; sleep 2; done
+              {{- if not $aws }}
+              until nc -z {{ include "fix.s3Host" . }} 9000; do echo aguardando s3; sleep 2; done
+              {{- end }}
+              until nc -z {{ include "fix.coreHost" . }} {{ .Values.coreService.port }}; do echo aguardando core-service; sleep 2; done
+      containers:
+        - name: storage-service
+          image: {{ include "fix.image" (dict "ctx" . "component" "storage-service") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          ports:
+            - name: grpc
+              containerPort: {{ $s.port }}
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Production
+            - name: ASPNETCORE_URLS
+              value: "http://+:{{ $s.port }}"
+            - name: Core__Address
+              value: "http://{{ include "fix.coreHost" . }}:{{ .Values.coreService.port }}"
+            - name: MONGO_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ $secrets }}, key: mongo-password }
+            - name: Mongo__ConnectionString
+              value: "mongodb://{{ .Values.mongodb.username }}:$(MONGO_PASSWORD)@{{ include "fix.mongoHost" . }}:27017/?authSource=admin"
+            - name: Mongo__Database
+              value: {{ .Values.mongodb.database | quote }}
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ $secrets }}, key: rabbitmq-password }
+            - name: RabbitMq__Uri
+              value: "amqp://{{ .Values.rabbitmq.username }}:$(RABBITMQ_PASSWORD)@{{ include "fix.rabbitmqHost" . }}:5672/"
+            - name: RabbitMq__LinePrefetch
+              value: {{ $s.linePrefetch | quote }}
+            {{- if $aws }}
+            # Bucket S3 da AWS (Terraform): tudo vem do Secret gravado pelo fix-sync a partir do SSM.
+            - name: S3__Bucket
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secrets.name }}, key: s3-bucket }
+            - name: S3__Region
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secrets.name }}, key: s3-region }
+            - name: S3__AccessKey
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secrets.name }}, key: s3-access-key }
+            - name: S3__SecretKey
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.secrets.name }}, key: s3-secret-key }
+            {{- else }}
+            # S3 compatível (RustFS) dentro do cluster.
+            - name: S3__ServiceUrl
+              value: "http://{{ include "fix.s3Host" . }}:9000"
+            - name: S3__Bucket
+              value: {{ .Values.objectStorage.bucket | quote }}
+            - name: S3__ForcePathStyle
+              value: "true"
+            - name: S3__CreateBucket
+              value: "true"
+            - name: S3__AccessKey
+              valueFrom:
+                secretKeyRef: { name: {{ $secrets }}, key: s3-access-key }
+            - name: S3__SecretKey
+              valueFrom:
+                secretKeyRef: { name: {{ $secrets }}, key: s3-secret-key }
+            {{- end }}
+            - name: OpenTelemetry__Enabled
+              value: {{ include "fix.telemetryEnabled" . | quote }}
+            {{- with include "fix.otlpGrpcEndpoint" . }}
+            - name: OpenTelemetry__OtlpEndpoint
+              value: {{ . | quote }}
+            {{- end }}
+          startupProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 20
+          resources:
+            {{- toYaml $s.resources | nindent 12 }}

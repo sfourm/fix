@@ -27,6 +27,20 @@ jobs:
           dotnet build Fix.slnx -c Release
           dotnet test Fix.slnx -c Release --no-build
 
+  storage-service:
+    name: storage-service (.NET)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Build e testes (modelos, leitores de planilha e processamento)
+        working-directory: backend/storage-service
+        run: |
+          dotnet build Fix.Storage.slnx -c Release
+          dotnet test Fix.Storage.slnx -c Release --no-build
+
   bff:
     name: BFF (Node)
     runs-on: ubuntu-latest

@@ -47,6 +47,9 @@ spec:
       host: fix.webpassos.com.br
       tls:
         enabled: true
+    # Uploads: arquivos no bucket S3 criado pelo Terraform (infra/terraform/s3.tf).
+    objectStorage:
+      provider: aws
     observability:
       enabled: true
       grafana:

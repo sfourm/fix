@@ -44,6 +44,7 @@ spec:
             - |
               until nc -z {{ include "fix.coreHost" . }} {{ .Values.coreService.port }}; do echo aguardando core-service; sleep 2; done
               until wget -qO- http://{{ include "fix.elasticsearchHost" . }}:9200/_cluster/health >/dev/null 2>&1; do echo aguardando elasticsearch; sleep 3; done
+              until nc -z {{ include "fix.rabbitmqHost" . }} 5672; do echo aguardando rabbitmq; sleep 2; done
       containers:
         - name: bff
           image: {{ include "fix.image" (dict "ctx" . "component" "bff") }}
@@ -59,6 +60,14 @@ spec:
               value: {{ $b.port | quote }}
             - name: CORE_GRPC_URL
               value: "{{ include "fix.coreHost" . }}:{{ .Values.coreService.port }}"
+            # Uploads: storage-service (gRPC) e o progresso do processamento (RabbitMQ → SSE para o web).
+            - name: STORAGE_GRPC_URL
+              value: "{{ include "fix.storageHost" . }}:{{ .Values.storageService.port }}"
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ include "fix.storageSecretsName" . }}, key: rabbitmq-password }
+            - name: RABBITMQ_URL
+              value: "amqp://{{ .Values.rabbitmq.username }}:$(RABBITMQ_PASSWORD)@{{ include "fix.rabbitmqHost" . }}:5672"
             - name: GRPC_CONTRACTS
               value: files
             - name: PROTOS_DIR
