@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { useOrganizationStore } from '@/application/stores/organization.store';
 import { useSessionStore } from '@/application/stores/session.store';
+import { fileKindFromSlug } from '@/domain/file';
+import { fileKindLabel } from '@/domain/labels';
 import { Permission, type PermissionCode } from '@/domain/permissions';
 import { paths } from '../paths';
 import type { Crumb, TrailStore } from '../trail';
@@ -23,6 +25,12 @@ const policiesCrumb: Crumb = { label: 'Políticas', to: paths.policies() };
 const policyCrumbs: Trail = (p, t) => [policiesCrumb, { label: t.get(p.policyId), to: paths.policy(p.policyId!) }];
 const mandateCrumbs: Trail = (p, t) => [...policyCrumbs(p, t), { label: t.get(p.mandateId), to: paths.mandate(p.policyId!, p.mandateId!) }];
 const area = (label: string, current: string): Trail => () => [{ label }, { label: current }];
+
+const uploadsCrumb: Crumb = { label: 'Uploads', to: paths.uploads() };
+const uploadKindLabel = (slug: string | undefined): string => {
+  const kind = fileKindFromSlug(slug);
+  return kind ? fileKindLabel[kind] : '…';
+};
 
 const routes: RouteRecordRaw[] = [
   // AppLayout primeiro: com dois pais em '/', o primeiro definido vence para a rota raiz.
@@ -121,15 +129,28 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'members',
         component: () => import('../views/organizations/MembersView.vue'),
-        meta: page(Permission.ViewUsers, area('Usuários', 'Membros e grupos')),
+        meta: page(Permission.ViewUser, area('Usuários', 'Membros e grupos')),
       },
       {
         path: 'members/groups/:groupId',
         component: () => import('../views/organizations/GroupDetailView.vue'),
         props: true,
-        meta: page(Permission.ViewUsers, (p, t) => [{ label: 'Usuários' }, { label: 'Membros e grupos', to: '/members' }, { label: t.get(p.groupId) }]),
+        meta: page(Permission.ViewUser, (p, t) => [{ label: 'Usuários' }, { label: 'Membros e grupos', to: '/members' }, { label: t.get(p.groupId) }]),
       },
-      { path: 'access', component: () => import('../views/organizations/AccessView.vue'), meta: page(undefined, area('Usuários', 'Cargos e Regras')) },
+      { path: 'access', component: () => import('../views/organizations/AccessView.vue'), meta: page(Permission.ViewUser, area('Usuários', 'Cargos e Regras')) },
+
+      // ---------- Uploads (cards por tipo → arquivos → linhas); quem vê cada tipo é decidido pelo storage ----------
+      { path: 'uploads', component: () => import('../views/uploads/UploadsView.vue'), meta: page(undefined, () => [{ label: 'Uploads' }]) },
+      {
+        path: 'uploads/:kind',
+        component: () => import('../views/uploads/UploadKindView.vue'),
+        meta: page(undefined, (p) => [uploadsCrumb, { label: uploadKindLabel(p.kind) }]),
+      },
+      {
+        path: 'uploads/:kind/:fileId',
+        component: () => import('../views/uploads/UploadFileView.vue'),
+        meta: page(undefined, (p, t) => [uploadsCrumb, { label: uploadKindLabel(p.kind), to: `/uploads/${p.kind}` }, { label: t.get(p.fileId) }]),
+      },
 
       // ---------- Organização ----------
       { path: 'setup', component: () => import('../views/setup/SetupView.vue'), meta: page(undefined, area('Organização', 'Setup da companhia')) },

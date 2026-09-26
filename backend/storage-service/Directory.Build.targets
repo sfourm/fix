@@ -1,0 +1,6 @@
+<Project>
+  <ItemGroup>
+    <!-- O domínio se chama File/FileLine: System.IO fica fora dos usings implícitos (use System.IO.* qualificado). -->
+    <Using Remove="System.IO" />
+  </ItemGroup>
+</Project>

@@ -1,5 +1,6 @@
 import type { Commodity, MeasurementUnit } from './common';
 import type { CounterpartyType } from './counterparty';
+import type { FileKind, FileLineStatus, FileStatus } from './file';
 import type { ComplianceStatus, MandateStatus, MandateType } from './mandate';
 import type { ApprovalStatus, ConfirmationStatus, OptionKind, OrderType, TradeDirection } from './order';
 import type { Desk, Sector } from './organization';
@@ -183,4 +184,51 @@ export const childEntityLabel: Record<string, string> = {
   PolicyInstrument: 'Instrumento',
   PolicyVersion: 'Versão',
   RuleRole: 'Regra',
+};
+
+export const fileKindLabel: Record<FileKind, string> = {
+  Users: 'Usuários',
+  Policies: 'Políticas',
+  Mandates: 'Mandatos',
+  Orders: 'Boletas',
+  Documents: 'Documentos',
+};
+
+/** O que acontece com o arquivo de cada tipo (texto dos cards). */
+export const fileKindHint: Record<FileKind, string> = {
+  Users: 'Adiciona à organização contas já cadastradas, com cargo, mesa e grupo.',
+  Policies: 'Cria políticas novas em rascunho (só criação); eixos e limites seguem pela tela, com aprovação.',
+  Mandates: 'Emite mandatos nos eixos das políticas; entram na fila de aprovação como pela tela.',
+  Orders: 'Registra boletas com e sem mandato; o enquadramento e a aprovação seguem o fluxo normal.',
+  Documents: 'Qualquer documento da companhia (contratos, confirmações, planilhas). Só armazena.',
+};
+
+export const fileStatusLabel: Record<FileStatus, string> = {
+  Received: 'Na fila',
+  Processing: 'Processando',
+  Completed: 'Concluído',
+  CompletedWithErrors: 'Concluído com falhas',
+  Failed: 'Falhou',
+  Stored: 'Armazenado',
+};
+
+export const fileStatusTone: Record<FileStatus, Tone> = {
+  Received: 'info',
+  Processing: 'info',
+  Completed: 'success',
+  CompletedWithErrors: 'warning',
+  Failed: 'danger',
+  Stored: 'neutral',
+};
+
+export const fileLineStatusLabel: Record<FileLineStatus, string> = {
+  Pending: 'Pendente',
+  Succeeded: 'Processada',
+  Failed: 'Falhou',
+};
+
+export const fileLineStatusTone: Record<FileLineStatus, Tone> = {
+  Pending: 'neutral',
+  Succeeded: 'success',
+  Failed: 'danger',
 };

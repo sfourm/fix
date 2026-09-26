@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useApi } from '@/application/api-provider';
 import { useRuleStore } from '@/application/stores/rule.store';
 import { useOrganizationStore } from '@/application/stores/organization.store';
@@ -25,11 +25,20 @@ const ruleStore = useRuleStore();
 const session = useSessionStore();
 const toast = useToast();
 const router = useRouter();
+const route = useRoute();
 const { confirm } = useConfirm();
+
+/** Abas no padrão do sistema: grupos e organograma (primeira) × membros (na URL, para voltar à mesma aba). */
+type Tab = 'groups' | 'members';
+const tab = computed<Tab>(() => (route.query.tab === 'members' ? 'members' : 'groups'));
+const selectTab = (key: Tab) => router.replace({ query: key === 'groups' ? {} : { tab: key } });
 
 const members = useLoader(() => api.organizations.members());
 const groups = useLoader(() => api.organizations.groups());
-const canEdit = computed(() => organization.can(Permission.EditOrganization));
+/** Ações conforme as regras efetivas (cargos diretos e dos grupos do usuário). */
+const canCreate = computed(() => organization.can(Permission.CreateUser));
+const canUpdate = computed(() => organization.can(Permission.UpdateUser));
+const canDelete = computed(() => organization.can(Permission.DeleteUser));
 /** Na organização FIX a tela gere a equipe interna: sem alçadas, sem owner. */
 const internalTeam = computed(() => organization.isInternalOrganization);
 const memberName = (id: string) => {
@@ -104,7 +113,7 @@ async function transferOwnership(member: Member) {
     await organization.refresh();
     toast.success('Propriedade transferida.');
     // Quem transferiu vira usuário e pode perder o acesso a esta tela.
-    if (organization.can(Permission.ViewUsers)) await members.load();
+    if (organization.can(Permission.ViewUser)) await members.load();
     else await router.push('/');
   } catch (e) {
     toast.error(errorMessage(e));
@@ -270,13 +279,25 @@ onMounted(() => {
     "
   />
 
+  <nav class="tabs members-tabs" role="tablist" aria-label="Seções de usuários">
+    <button type="button" role="tab" class="tab" :class="{ active: tab === 'groups' }" :aria-selected="tab === 'groups'" @click="selectTab('groups')">
+      Grupos e organograma
+    </button>
+    <button type="button" role="tab" class="tab" :class="{ active: tab === 'members' }" :aria-selected="tab === 'members'" @click="selectTab('members')">
+      {{ internalTeam ? 'Administradores' : 'Membros' }}
+    </button>
+  </nav>
+
   <div class="stack">
-    <section class="card">
+    <section v-if="tab === 'members'" class="card">
       <header class="card-header">
         <h2>{{ internalTeam ? 'Administradores' : 'Membros' }}</h2>
-        <button v-if="canEdit" class="btn btn-primary btn-sm" @click="addingMember = true; memberSubmit.reset()">
-          {{ internalTeam ? '+ Adicionar administrador' : '+ Adicionar membro' }}
-        </button>
+        <div v-if="canCreate" class="row">
+          <RouterLink v-if="!internalTeam" class="btn btn-sm" :to="paths.uploadKind('Users', true)">Importar planilha</RouterLink>
+          <button class="btn btn-primary btn-sm" @click="addingMember = true; memberSubmit.reset()">
+            {{ internalTeam ? '+ Adicionar administrador' : '+ Adicionar membro' }}
+          </button>
+        </div>
       </header>
       <StateBlock :loading="members.loading.value && !members.data.value" :error="members.error.value" @retry="members.load">
         <div class="table-wrap">
@@ -301,7 +322,7 @@ onMounted(() => {
                 <td class="muted">{{ member.email }}</td>
                 <td v-if="!internalTeam">
                   <select
-                    v-if="canEdit"
+                    v-if="canUpdate"
                     class="input input-sm"
                     :value="member.desk ?? ''"
                     :aria-label="`Mesa de ${member.fullName}`"
@@ -325,10 +346,10 @@ onMounted(() => {
                 </td>
                 <td class="muted">{{ member.groups.join(', ') || '—' }}</td>
                 <td class="actions">
-                  <button v-if="canEdit && !internalTeam" class="btn btn-sm" @click="openRules('member', member)">Cargos</button>
+                  <button v-if="canUpdate && !internalTeam" class="btn btn-sm" @click="openRules('member', member)">Cargos</button>
                   <button v-if="canTransfer && !member.isOwner" class="btn btn-sm" @click="transferOwnership(member)">Tornar owner</button>
                   <button
-                    v-if="canEdit && !member.isOwner && member.role !== 'super_administrador'"
+                    v-if="canDelete && !member.isOwner && member.role !== 'super_administrador'"
                     class="btn btn-sm btn-danger"
                     @click="removeMember(member)"
                   >
@@ -342,7 +363,7 @@ onMounted(() => {
       </StateBlock>
     </section>
 
-    <section class="card">
+    <section v-else class="card">
       <header class="card-header">
         <div class="stack" style="gap: 2px">
           <h2>Grupos e organograma</h2>
@@ -353,14 +374,15 @@ onMounted(() => {
             <button type="button" role="tab" class="tab" :class="{ active: chartView === 'flow' }" :aria-selected="chartView === 'flow'" @click="chartView = 'flow'">Fluxo</button>
             <button type="button" role="tab" class="tab" :class="{ active: chartView === 'list' }" :aria-selected="chartView === 'list'" @click="chartView = 'list'">Lista</button>
           </div>
-          <button v-if="canEdit" class="btn btn-primary btn-sm" @click="addChildGroup(chart[0]?.id ?? '')">+ Novo grupo</button>
+          <button v-if="canCreate" class="btn btn-primary btn-sm" @click="addChildGroup(chart[0]?.id ?? '')">+ Novo grupo</button>
         </div>
       </header>
       <StateBlock :loading="groups.loading.value && !groups.data.value" :error="groups.error.value" @retry="groups.load">
         <OrgChartFlow
           v-if="chartView === 'flow'"
           :groups="groups.data.value ?? []"
-          :can-edit="canEdit"
+          :can-edit="canUpdate"
+          :can-create="canCreate"
           :member-name="memberName"
           :rule-name="ruleStore.nameOf"
           @move="moveFromFlow"
@@ -396,7 +418,7 @@ onMounted(() => {
                 </td>
                 <td class="muted">{{ group.memberIds.map(memberName).join(', ') || '—' }}</td>
                 <td class="actions">
-                  <template v-if="canEdit">
+                  <template v-if="canUpdate">
                     <button v-if="!internalTeam" class="btn btn-sm" @click="openRules('group', group)">Cargos</button>
                     <button v-if="group.depth > 0" class="btn btn-sm" @click="openMove(group)">Mover</button>
                     <button class="btn btn-sm" @click="openAddToGroup(group)">Adicionar membro</button>
@@ -537,6 +559,16 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.members-tabs {
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.members-tabs .tab {
+  flex: 1 0 auto;
+  justify-content: center;
+}
+
 .view-switch {
   margin: 0;
 }

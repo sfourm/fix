@@ -4,6 +4,9 @@ import type { ComplianceStatus } from '../../../cross-cutting/enums/compliance-s
 import type { ConfirmationStatus } from '../../../cross-cutting/enums/confirmation-status.js';
 import type { CounterpartyType } from '../../../cross-cutting/enums/counterparty-type.js';
 import type { Desk } from '../../../cross-cutting/enums/desk.js';
+import type { FileKind } from '../../../cross-cutting/enums/file-kind.js';
+import type { FileLineStatus } from '../../../cross-cutting/enums/file-line-status.js';
+import type { FileStatus } from '../../../cross-cutting/enums/file-status.js';
 import type { InstrumentPermission } from '../../../cross-cutting/enums/instrument-permission.js';
 import type { MandateStatus } from '../../../cross-cutting/enums/mandate-status.js';
 import type { MandateType } from '../../../cross-cutting/enums/mandate-type.js';
@@ -71,3 +74,6 @@ export const tradeDirectionEnum = contractEnum<TradeDirection>('TRADE_DIRECTION'
 export const optionKindEnum = contractEnum<OptionKind>('OPTION_KIND');
 export const approvalStatusEnum = contractEnum<ApprovalStatus>('APPROVAL_STATUS');
 export const confirmationStatusEnum = contractEnum<ConfirmationStatus>('CONFIRMATION_STATUS');
+export const fileKindEnum = contractEnum<FileKind>('FILE_KIND');
+export const fileStatusEnum = contractEnum<FileStatus>('FILE_STATUS');
+export const fileLineStatusEnum = contractEnum<FileLineStatus>('FILE_LINE_STATUS');

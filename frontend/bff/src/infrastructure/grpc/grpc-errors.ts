@@ -15,11 +15,11 @@ const codes: Partial<Record<status, ErrorCode>> = {
 };
 
 /** Traduz o status gRPC do core para o erro de aplicação do BFF. */
-export function toAppError(error: ServiceError): AppError {
+export function toAppError(error: ServiceError, service = 'core'): AppError {
   const code = codes[error.code] ?? 'internal';
 
   if (code === 'unavailable') {
-    return new AppError(code, 'O serviço core está indisponível. Tente novamente em instantes.');
+    return new AppError(code, `O serviço ${service} está indisponível. Tente novamente em instantes.`);
   }
 
   if (code === 'internal') {

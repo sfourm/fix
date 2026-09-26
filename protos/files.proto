@@ -1,0 +1,159 @@
+syntax = "proto3";
+
+package fix.v1;
+
+option csharp_namespace = "Fix.Contracts.V1";
+
+import "common.proto";
+
+// Arquivos (storage-service). Exige context.user_id e context.organization_id.
+//
+// Fluxo (use case UploadFile): valida o arquivo contra o modelo do tipo, grava no S3, registra o arquivo e publica o
+// evento FileUpload (file.uploaded) no RabbitMQ. O processamento é assíncrono: as linhas vão para uma fila própria (uma linha que falha não
+// afeta as outras) e cada uma é executada no core-service em nome de quem enviou. O progresso é publicado como
+// file.progress (o BFF repassa ao navegador por SSE).
+service FileService {
+  rpc UploadFile(UploadFileRequest) returns (File);
+  rpc GetFile(FileIdRequest) returns (File);
+  rpc ListFiles(ListFilesRequest) returns (ListFilesResponse);
+  rpc ListFileLines(ListFileLinesRequest) returns (ListFileLinesResponse);
+  // Resumo por tipo (cards da tela de uploads).
+  rpc GetFileSummary(FileSummaryRequest) returns (FileSummaryResponse);
+  // Modelo do tipo: colunas esperadas e um CSV de exemplo.
+  rpc GetFileTemplate(GetFileTemplateRequest) returns (FileTemplate);
+  // Link temporário (pré-assinado) para baixar o arquivo original.
+  rpc GetFileDownloadUrl(FileIdRequest) returns (FileDownloadUrl);
+}
+
+enum FileKind {
+  FILE_KIND_UNSPECIFIED = 0;
+  FILE_KIND_USERS = 1;     // processado: adiciona membros (contas existentes) à organização
+  FILE_KIND_POLICIES = 2;  // armazenado (documentos da política)
+  FILE_KIND_MANDATES = 3;  // processado: emite mandatos
+  FILE_KIND_ORDERS = 4;    // processado: registra boletas
+  FILE_KIND_DOCUMENTS = 5; // armazenado (documento genérico)
+}
+
+enum FileStatus {
+  FILE_STATUS_UNSPECIFIED = 0;
+  FILE_STATUS_RECEIVED = 1;              // gravado e na fila para leitura
+  FILE_STATUS_PROCESSING = 2;            // linhas em processamento
+  FILE_STATUS_COMPLETED = 3;             // todas as linhas com sucesso
+  FILE_STATUS_COMPLETED_WITH_ERRORS = 4; // terminou com linhas que falharam
+  FILE_STATUS_FAILED = 5;                // o arquivo não pôde ser lido
+  FILE_STATUS_STORED = 6;                // tipos só armazenados (políticas, documentos)
+}
+
+enum FileLineStatus {
+  FILE_LINE_STATUS_UNSPECIFIED = 0;
+  FILE_LINE_STATUS_PENDING = 1;
+  FILE_LINE_STATUS_SUCCEEDED = 2;
+  FILE_LINE_STATUS_FAILED = 3;
+}
+
+message UploadFileRequest {
+  RequestContext context = 1;
+  FileKind kind = 2;
+  string file_name = 3;
+  string content_type = 4;
+  bytes content = 5;
+}
+
+message File {
+  string id = 1;
+  FileKind kind = 2;
+  FileStatus status = 3;
+  string file_name = 4;
+  string content_type = 5;
+  int64 size_bytes = 6;
+  string organization_id = 7;
+  string uploaded_by = 8;
+  string uploaded_at = 9; // ISO 8601
+  optional string finished_at = 10;
+  int32 total_lines = 11;
+  int32 processed_lines = 12;
+  int32 succeeded_lines = 13;
+  int32 failed_lines = 14;
+  optional string error = 15; // falha do arquivo inteiro (ex.: não pôde ser lido)
+  string storage_url = 16;    // s3://bucket/chave
+}
+
+message FileLine {
+  string id = 1;
+  int32 number = 2; // linha no arquivo (1 = primeira linha de dados)
+  FileLineStatus status = 3;
+  map<string, string> values = 4; // coluna -> valor, como veio no arquivo
+  optional string message = 5;    // erro da linha ou resumo do resultado
+  optional string result_code = 6; // ex.: MD-07, HX-0012
+  optional string processed_at = 7;
+}
+
+message FileIdRequest {
+  RequestContext context = 1;
+  string id = 2;
+}
+
+message ListFilesRequest {
+  RequestContext context = 1;
+  FileKind kind = 2; // UNSPECIFIED = todos
+  PageRequest page = 3;
+}
+
+message ListFilesResponse {
+  repeated File files = 1;
+  PageInfo page = 2;
+}
+
+message ListFileLinesRequest {
+  RequestContext context = 1;
+  string file_id = 2;
+  FileLineStatus status = 3; // UNSPECIFIED = todas
+  PageRequest page = 4;
+}
+
+message ListFileLinesResponse {
+  repeated FileLine lines = 1;
+  PageInfo page = 2;
+}
+
+message FileSummaryRequest {
+  RequestContext context = 1;
+}
+
+message FileKindSummary {
+  FileKind kind = 1;
+  int32 total = 2;
+  int32 processing = 3;
+  int32 with_errors = 4;
+  optional string last_uploaded_at = 5;
+  bool can_upload = 6; // o usuário tem a regra exigida pelo tipo
+}
+
+message FileSummaryResponse {
+  repeated FileKindSummary kinds = 1;
+}
+
+message GetFileTemplateRequest {
+  RequestContext context = 1;
+  FileKind kind = 2;
+}
+
+message FileTemplateColumn {
+  string name = 1;
+  bool required = 2;
+  string description = 3;
+  string example = 4;
+}
+
+message FileTemplate {
+  FileKind kind = 1;
+  bool processed = 2;                        // falso = só armazena
+  repeated string accepted_extensions = 3;   // .csv, .xlsx, .xml (documentos: qualquer)
+  repeated FileTemplateColumn columns = 4;
+  bytes example_csv = 5;
+}
+
+message FileDownloadUrl {
+  string url = 1;
+  string expires_at = 2;
+}

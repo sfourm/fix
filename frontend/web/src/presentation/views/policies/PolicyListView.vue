@@ -97,7 +97,10 @@ onMounted(load);
     subtitle="Política-mãe versionada: limites, eixos por fator de risco, bandas de cobertura e instrumentos. Só vale depois de aprovada em ata."
   >
     <template #actions>
-      <button v-if="organization.can(Permission.CreatePolicy)" class="btn btn-primary" @click="creating = true; submit.reset()">+ Nova política</button>
+      <template v-if="organization.can(Permission.CreatePolicy)">
+        <RouterLink class="btn" :to="paths.uploadKind('Policies', true)">Importar planilha</RouterLink>
+        <button class="btn btn-primary" @click="creating = true; submit.reset()">+ Nova política</button>
+      </template>
     </template>
   </PageHeader>
 

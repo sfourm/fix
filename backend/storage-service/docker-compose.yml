@@ -1,0 +1,56 @@
+# Infra local do storage-service. Nome fixo do projeto: não colide com as outras APIs do backend.
+name: fix-storage-service
+
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: fix-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: fix
+      RABBITMQ_DEFAULT_PASS: fix
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # painel: http://localhost:15672 (fix/fix)
+    volumes:
+      - fix-rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mongo:
+    image: mongo:8
+    container_name: fix-mongo
+    ports:
+      - "27018:27017" # 27018 no host: a 27017 costuma estar ocupada por outro Mongo
+    volumes:
+      - fix-mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # S3 local (RustFS, compatível com S3; a imagem do MinIO saiu do Docker Hub). O bucket é criado pelo serviço na
+  # subida (S3:CreateBucket).
+  s3:
+    image: rustfs/rustfs:latest
+    container_name: fix-s3
+    environment:
+      RUSTFS_ACCESS_KEY: fix
+      RUSTFS_SECRET_KEY: fix-storage
+      RUSTFS_CONSOLE_ENABLE: "true"
+    ports:
+      - "9000:9000" # API S3
+      - "9001:9001" # console: http://localhost:9001 (fix/fix-storage)
+    volumes:
+      - fix-s3-data:/data
+
+volumes:
+  fix-rabbitmq-data:
+    name: fix-storage-service-rabbitmq-data
+  fix-mongo-data:
+    name: fix-storage-service-mongo-data
+  fix-s3-data:
+    name: fix-storage-service-s3-data

@@ -9,7 +9,10 @@ import type { Group } from '@/domain/organization';
  */
 const props = defineProps<{
   groups: Group[];
+  /** Arrastar (mover no organograma) pede update_user. */
   canEdit: boolean;
+  /** "+" (novo grupo abaixo) pede create_user. */
+  canCreate?: boolean;
   memberName: (id: string) => string;
   ruleName: (code: string) => string;
 }>();
@@ -310,7 +313,7 @@ const initials = (id: string) =>
               </span>
               <span class="rules small" :title="g.rules.map(ruleName).join(', ')">{{ g.rules.length }} cargo(s)</span>
             </div>
-            <button v-if="canEdit && !drag?.active" class="add" type="button" :title="`Novo grupo abaixo de ${g.name}`" :aria-label="`Novo grupo abaixo de ${g.name}`" @click.stop="emit('addChild', g.id)">+</button>
+            <button v-if="canCreate && !drag?.active" class="add" type="button" :title="`Novo grupo abaixo de ${g.name}`" :aria-label="`Novo grupo abaixo de ${g.name}`" @click.stop="emit('addChild', g.id)">+</button>
           </div>
         </div>
       </div>

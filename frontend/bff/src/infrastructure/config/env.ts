@@ -11,6 +11,12 @@ const schema = z.object({
   CORE_GRPC_URL: z.string().min(1).default('localhost:5098'),
   CORE_GRPC_TLS: z.stringbool().default(false),
   CORE_GRPC_DEADLINE_MS: z.coerce.number().int().positive().default(10_000),
+  /** storage-service (uploads): o envio do arquivo tem prazo maior. */
+  STORAGE_GRPC_URL: z.string().min(1).default('localhost:5099'),
+  STORAGE_GRPC_DEADLINE_MS: z.coerce.number().int().positive().default(60_000),
+  /** RabbitMQ: progresso do processamento dos arquivos (file.progress), repassado ao web por SSE. */
+  RABBITMQ_URL: z.string().default('amqp://fix:fix@localhost:5672'),
+  RABBITMQ_FILES_EXCHANGE: z.string().default('fix.files'),
   GRPC_CONTRACTS: z.enum(['files', 'reflection']).default('files'),
   PROTOS_DIR: z.string().default(repoProtos),
   SESSION_SECRET: z.string().min(32).default(DEV_SECRET),

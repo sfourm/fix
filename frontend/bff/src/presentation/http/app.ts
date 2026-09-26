@@ -5,6 +5,7 @@ import type { AuthService } from '../../application/auth/services/auth.service.j
 import type { VisualizationCache } from '../../application/common/visualization-cache.js';
 import type { CounterpartyService } from '../../application/counterparties/services/counterparty.service.js';
 import type { DashboardService } from '../../application/dashboards/services/dashboard.service.js';
+import type { FileService } from '../../application/files/services/file.service.js';
 import type { SavedFilterService } from '../../application/filters/services/saved-filter.service.js';
 import type { MandateService } from '../../application/mandates/services/mandate.service.js';
 import type { OrderService } from '../../application/orders/services/order.service.js';
@@ -18,6 +19,7 @@ import { authenticate, errorHandler, invalidateVisualizationOnWrite, notFound, O
 import { telemetryMiddleware } from './telemetry.middleware.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { dashboardRoutes } from './routes/dashboard.routes.js';
+import { FILE_CONTENT_TYPE_HEADER, FILE_NAME_HEADER, fileRoutes } from './routes/file.routes.js';
 import { counterpartyRoutes } from './routes/counterparty.routes.js';
 import { mandateRoutes } from './routes/mandate.routes.js';
 import { orderRoutes } from './routes/order.routes.js';
@@ -43,6 +45,7 @@ export interface AppDependencies {
     roles: RoleService;
     rules: RuleService;
     timeline: TimelineService;
+    files: FileService;
     dashboards: DashboardService;
     savedFilters: SavedFilterService;
     search: SearchService;
@@ -57,7 +60,16 @@ export function createApp({ corsOrigin, tokens, visualizationCache, services }: 
   app.use(
     cors({
       origin: corsOrigin.split(',').map((origin) => origin.trim()),
-      allowedHeaders: ['Content-Type', 'Authorization', ORGANIZATION_HEADER, 'traceparent', 'tracestate', 'baggage'],
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        ORGANIZATION_HEADER,
+        FILE_NAME_HEADER,
+        FILE_CONTENT_TYPE_HEADER,
+        'traceparent',
+        'tracestate',
+        'baggage',
+      ],
     }),
   );
   app.use(express.json({ limit: '1mb' }));
@@ -81,6 +93,9 @@ export function createApp({ corsOrigin, tokens, visualizationCache, services }: 
   app.use('/api/roles', roleRoutes(services.roles));
   app.use('/api/rules', invalidateOnWrite, ruleRoutes(services.rules));
   app.use('/api/timeline', timelineRoutes(services.timeline));
+
+  // Uploads: storage-service (gRPC) e progresso ao vivo (RabbitMQ → SSE). Linhas processadas alteram dados do core.
+  app.use('/api/files', invalidateOnWrite, fileRoutes(services.files));
 
   // Recursos próprios do BFF (Elasticsearch + cache Redis): não passam pelo core.
   app.use('/api/dashboards', dashboardRoutes(services.dashboards));

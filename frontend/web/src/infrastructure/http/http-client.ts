@@ -35,26 +35,104 @@ export class HttpClient {
     return this.request<T>('DELETE', path);
   }
 
+  /** Envia um arquivo como corpo binário; nome e tipo vão em headers próprios (X-File-Name, X-File-Content-Type). */
+  async upload<T>(path: string, file: File, query?: Query): Promise<T> {
+    const headers = this.baseHeaders();
+    headers['Content-Type'] = 'application/octet-stream';
+    headers['X-File-Name'] = encodeURIComponent(file.name);
+    if (file.type) headers['X-File-Content-Type'] = file.type;
+
+    return this.parse<T>(await this.send(this.url(path, query), { method: 'POST', headers, body: file }), headers);
+  }
+
+  /** Baixa um arquivo gerado pelo BFF (ex.: modelo CSV). */
+  async blob(path: string): Promise<Blob> {
+    const headers = this.baseHeaders();
+    const response = await this.send(this.url(path), { method: 'GET', headers });
+    if (!response.ok) {
+      await this.parse(response, headers);
+    }
+
+    return response.blob();
+  }
+
+  /**
+   * Server-Sent Events pelo fetch (o EventSource não envia o header Authorization). Resolve quando a conexão fecha;
+   * para encerrar antes, cancele pelo signal.
+   */
+  async stream(
+    path: string,
+    query: Query,
+    onEvent: (event: string, data: string) => void,
+    signal: AbortSignal,
+    onOpen?: () => void,
+  ): Promise<void> {
+    const headers = this.baseHeaders();
+    headers['Accept'] = 'text/event-stream';
+    const response = await this.send(this.url(path, query), { method: 'GET', headers, signal });
+    if (!response.ok || !response.body) {
+      await this.parse(response, headers);
+      return;
+    }
+
+    onOpen?.();
+    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) return;
+
+      buffer += value.replace(/\r\n/g, '\n');
+      let end: number;
+      while ((end = buffer.indexOf('\n\n')) >= 0) {
+        const block = buffer.slice(0, end);
+        buffer = buffer.slice(end + 2);
+
+        let event = 'message';
+        const data: string[] = [];
+        for (const line of block.split('\n')) {
+          if (line.startsWith('event:')) event = line.slice(6).trim();
+          else if (line.startsWith('data:')) data.push(line.slice(5).trimStart());
+        }
+
+        if (data.length) onEvent(event, data.join('\n'));
+      }
+    }
+  }
+
   private async request<T>(method: Method, path: string, body?: unknown, query?: Query): Promise<T> {
+    const headers = this.baseHeaders();
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+
+    const response = await this.send(this.url(path, query), {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    return this.parse<T>(response, headers);
+  }
+
+  private baseHeaders(): Record<string, string> {
     const headers: Record<string, string> = { Accept: 'application/json' };
     const token = this.options.getToken();
     const organizationId = this.options.getOrganizationId();
 
     if (token) headers['Authorization'] = `Bearer ${token}`;
     if (organizationId) headers['X-Organization-Id'] = organizationId;
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    return headers;
+  }
 
-    let response: Response;
+  private async send(url: string, init: RequestInit): Promise<Response> {
     try {
-      response = await fetch(this.url(path, query), {
-        method,
-        headers,
-        body: body === undefined ? undefined : JSON.stringify(body),
-      });
-    } catch {
+      return await fetch(url, init);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') throw error;
       throw new ApiError(0, 'network', 'Não foi possível conectar ao servidor.');
     }
+  }
 
+  /** Lê a resposta JSON; erro vira ApiError (401 com sessão encerra a sessão). */
+  private async parse<T>(response: Response, headers: Record<string, string>): Promise<T> {
     if (response.status === 204) {
       return undefined as T;
     }
@@ -69,7 +147,7 @@ export class HttpClient {
         payload?.fields ?? {},
       );
 
-      if (response.status === 401 && token) {
+      if (response.status === 401 && headers['Authorization']) {
         this.options.onUnauthorized();
       }
 

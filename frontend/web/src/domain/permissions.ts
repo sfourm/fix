@@ -21,8 +21,13 @@ export const Permission = {
   SelfApprove: 'self_approve',
   ViewCounterparties: 'view_counterparties',
   ManageCounterparties: 'manage_counterparties',
+  /** Setup da companhia (identificação, capacidade, orçamento, financeiro, commodities). */
   EditOrganization: 'edit_organization',
-  ViewUsers: 'view_users',
+  /** Usuários: membros, grupos/organograma e cargos. */
+  ViewUser: 'view_user',
+  CreateUser: 'create_user',
+  UpdateUser: 'update_user',
+  DeleteUser: 'delete_user',
 } as const;
 
 export type PermissionCode = (typeof Permission)[keyof typeof Permission];

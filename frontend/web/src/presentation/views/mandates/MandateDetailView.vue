@@ -178,9 +178,10 @@ onMounted(() => {
             <button v-if="organization.can(Permission.DeleteMandate)" class="btn btn-danger" @click="remove">Excluir</button>
           </template>
           <template v-if="mandate.status === 'Active'">
-            <RouterLink v-if="executable && organization.can(Permission.CreateOrder)" class="btn btn-primary" :to="paths.newOrder(props.policyId, mandate.id)">
-              + Registrar boleta
-            </RouterLink>
+            <template v-if="executable && organization.can(Permission.CreateOrder)">
+              <RouterLink class="btn" :to="paths.uploadKind('Orders', true)">Importar boletas</RouterLink>
+              <RouterLink class="btn btn-primary" :to="paths.newOrder(props.policyId, mandate.id)">+ Registrar boleta</RouterLink>
+            </template>
             <button v-if="organization.can(Permission.UpdateMandate)" class="btn btn-danger" @click="decision = 'close'">Encerrar</button>
           </template>
         </template>

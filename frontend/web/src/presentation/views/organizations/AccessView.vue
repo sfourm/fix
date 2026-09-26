@@ -20,7 +20,7 @@ const ruleStore = useRuleStore();
 const toast = useToast();
 const { confirm } = useConfirm();
 
-const canEdit = computed(() => organization.can(Permission.EditOrganization) && !organization.isInternalOrganization);
+const canEdit = computed(() => organization.can(Permission.UpdateUser) && !organization.isInternalOrganization);
 const isDecision = (code: string) => (DECISION_ROLES as string[]).includes(code);
 
 // ---------- Criar / editar cargo ----------

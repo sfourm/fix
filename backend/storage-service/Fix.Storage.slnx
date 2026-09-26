@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Fix.Storage.Domain/Fix.Storage.Domain.csproj" />
+    <Project Path="src/Fix.Storage.Application/Fix.Storage.Application.csproj" />
+    <Project Path="src/Fix.Storage.Infrastructure/Fix.Storage.Infrastructure.csproj" />
+    <Project Path="src/Fix.Storage.Presentation/Fix.Storage.Presentation.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Fix.Storage.Tests/Fix.Storage.Tests.csproj" />
+  </Folder>
+</Solution>

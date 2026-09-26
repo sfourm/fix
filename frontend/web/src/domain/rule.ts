@@ -58,7 +58,8 @@ export const ROLE_GROUPS: { title: string; roles: PermissionCode[] }[] = [
   },
   { title: 'Alçada de emissão', roles: [Permission.SelfApprove] },
   { title: 'Contrapartes', roles: [Permission.ViewCounterparties, Permission.ManageCounterparties] },
-  { title: 'Organização e usuários', roles: [Permission.EditOrganization, Permission.ViewUsers] },
+  { title: 'Organização', roles: [Permission.EditOrganization] },
+  { title: 'Usuários, grupos e cargos', roles: [Permission.ViewUser, Permission.CreateUser, Permission.UpdateUser, Permission.DeleteUser] },
 ];
 
 export const DECISION_ROLES: PermissionCode[] = [

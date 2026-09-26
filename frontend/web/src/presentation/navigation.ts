@@ -9,7 +9,7 @@ export interface NavChild {
 }
 
 export interface Area {
-  key: 'home' | 'policies' | 'users' | 'organization';
+  key: 'home' | 'policies' | 'users' | 'organization' | 'uploads';
   label: string;
   /** Legenda curta abaixo do nome no menu. */
   hint: string;
@@ -20,9 +20,9 @@ export interface Area {
 }
 
 /**
- * Menu lateral: Home e três áreas. Políticas é a raiz da cadeia 1:N (política → mandato → boleta): mandatos, boletas,
+ * Menu lateral: Home e quatro áreas. Políticas é a raiz da cadeia 1:N (política → mandato → boleta): mandatos, boletas,
  * aprovações e confirmações só aparecem dentro de uma política — o menu mostra o caminho aberto como trilha.
- * Usuários e Organização mostram os subitens quando abertas.
+ * Usuários e Organização mostram os subitens quando abertas; Uploads mostra o tipo e o arquivo abertos como trilha.
  */
 export const AREAS: Area[] = [
   { key: 'home', label: 'Home', hint: 'dashboards', to: '/', match: /^\/$/, children: [] },
@@ -46,9 +46,17 @@ export const AREAS: Area[] = [
     to: '/members',
     match: /^\/(members|access)(\/|$)/,
     children: [
-      { to: '/members', label: 'Membros e grupos', permission: Permission.ViewUsers, match: /^\/members(\/|$)/ },
-      { to: '/access', label: 'Cargos e Regras', match: /^\/access$/ },
+      { to: '/members', label: 'Membros e grupos', permission: Permission.ViewUser, match: /^\/members(\/|$)/ },
+      { to: '/access', label: 'Cargos e Regras', permission: Permission.ViewUser, match: /^\/access$/ },
     ],
+  },
+  {
+    key: 'uploads',
+    label: 'Uploads',
+    hint: 'planilhas · documentos',
+    to: '/uploads',
+    match: /^\/uploads(\/|$)/,
+    children: [],
   },
   {
     key: 'organization',

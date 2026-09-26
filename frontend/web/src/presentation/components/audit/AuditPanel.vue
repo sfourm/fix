@@ -182,7 +182,7 @@ async function exportAs(format: 'csv' | 'pdf') {
 
 onMounted(async () => {
   // Nomes dos autores (e o filtro por autor) só para quem pode ver os membros.
-  if (organization.can(Permission.ViewUsers)) {
+  if (organization.can(Permission.ViewUser)) {
     members.value = await api.organizations.members().catch(() => null);
   }
 });

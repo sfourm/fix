@@ -47,13 +47,10 @@ onMounted(load);
   <div class="stack">
     <div class="toolbar">
       <p class="lead small">Mandatos autorizam volume dentro de um eixo desta política. Dentro da política e com alçada de emissão entram ativos; fora dela exigem aprovação de exceção.</p>
-      <RouterLink
-        v-if="organization.can(Permission.CreateMandate) && policy.status === 'Active'"
-        class="btn btn-primary"
-        :to="paths.newMandate(policy.id)"
-      >
-        + Emitir mandato
-      </RouterLink>
+      <div v-if="organization.can(Permission.CreateMandate) && policy.status === 'Active'" class="row">
+        <RouterLink class="btn" :to="paths.uploadKind('Mandates', true)">Importar planilha</RouterLink>
+        <RouterLink class="btn btn-primary" :to="paths.newMandate(policy.id)">+ Emitir mandato</RouterLink>
+      </div>
     </div>
     <p v-if="policy.status !== 'Active'" class="alert alert-info">Mandatos só podem ser emitidos em política vigente.</p>
 

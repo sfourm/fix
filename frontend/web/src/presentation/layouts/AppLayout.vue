@@ -23,16 +23,16 @@ const areas = computed(() =>
   AREAS.filter((a) => !a.permission || organization.can(a.permission))
     .map((a) => ({ ...a, children: a.children.filter((c) => !c.permission || organization.can(c.permission)) }))
     .map((a) => ({ ...a, to: a.children[0]?.to ?? a.to }))
-    .filter((a) => a.key === 'home' || a.key === 'policies' || a.children.length > 0),
+    .filter((a) => a.key === 'home' || a.key === 'policies' || a.key === 'uploads' || a.children.length > 0),
 );
 
 const currentArea = computed(() => areas.value.find((a) => a.match.test(route.path)) ?? null);
 const crumbs = computed(() => crumbsFor(route, trail));
 
-/** Trilha aberta dentro de Políticas (política › mandato › boleta), exibida sob o item do menu. */
+/** Trilha aberta dentro de Políticas (política › mandato › boleta) ou de Uploads (tipo › arquivo), sob o item do menu. */
 const policyTrail = computed(() => {
   const area = currentArea.value;
-  if (area?.key !== 'policies') return [];
+  if (area?.key !== 'policies' && area?.key !== 'uploads') return [];
   // Passos que já são itens do menu (ex.: Exceções) não se repetem na trilha.
   return crumbs.value.slice(1).filter((c) => c.to && !area.children.some((child) => child.to === c.to));
 });
@@ -44,7 +44,7 @@ const pending = computed(() => queue.pendingApprovals + queue.openConfirmations)
 
 /** Remonta a tela ao trocar de entidade; abas da mesma política mantêm o cabeçalho. */
 const viewKey = computed(() =>
-  [organization.currentId, route.matched[1]?.path, route.params.policyId, route.params.mandateId, route.params.orderId, route.params.groupId].join('|'),
+  [organization.currentId, route.matched[1]?.path, route.params.policyId, route.params.mandateId, route.params.orderId, route.params.groupId, route.params.kind, route.params.fileId].join('|'),
 );
 
 // Navega antes de limpar o tenant: trocar a key do RouterView remontaria a view atual, que faria novas chamadas.

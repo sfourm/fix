@@ -4,6 +4,7 @@ import { ActorResolver } from './application/common/actor-resolver.js';
 import { VisualizationCache } from './application/common/visualization-cache.js';
 import { CounterpartyService } from './application/counterparties/services/counterparty.service.js';
 import { DashboardService } from './application/dashboards/services/dashboard.service.js';
+import { FileService } from './application/files/services/file.service.js';
 import { SavedFilterService } from './application/filters/services/saved-filter.service.js';
 import { MandateService } from './application/mandates/services/mandate.service.js';
 import { OrderService } from './application/orders/services/order.service.js';
@@ -20,7 +21,10 @@ import { ElasticDashboardRepository } from './infrastructure/elasticsearch/elast
 import { ElasticSavedFilterRepository } from './infrastructure/elasticsearch/elastic-saved-filter.repository.js';
 import { connectElasticsearch } from './infrastructure/elasticsearch/elasticsearch-connection.js';
 import { CoreClient } from './infrastructure/grpc/core-client.js';
+import { GrpcFileGateway } from './infrastructure/grpc/gateways/file.gateway.js';
 import { createGrpcGateways } from './infrastructure/grpc/gateways/index.js';
+import { StorageClient } from './infrastructure/grpc/storage-client.js';
+import { RabbitMqFileProgress } from './infrastructure/messaging/rabbitmq-file-progress.js';
 import { JwtSessionTokenService } from './infrastructure/security/jwt-session-token.service.js';
 import { createApp } from './presentation/http/app.js';
 
@@ -29,6 +33,10 @@ const env = loadEnv();
 const core = await CoreClient.connect(env);
 const gateways = createGrpcGateways(core);
 const tokens = new JwtSessionTokenService(env.SESSION_SECRET, env.SESSION_TTL);
+
+// Uploads: storage-service (gRPC) e o progresso do processamento pelo RabbitMQ.
+const storage = await StorageClient.connect(env);
+const fileProgress = await RabbitMqFileProgress.connect(env.RABBITMQ_URL, env.RABBITMQ_FILES_EXCHANGE);
 
 // Recursos próprios do BFF: dashboards e filtros no Elasticsearch, cache de visualização no Redis.
 const elastic = await connectElasticsearch(env.ELASTICSEARCH_URL, env.ELASTICSEARCH_INDEX_PREFIX);
@@ -61,6 +69,7 @@ const app = createApp({
     roles: new RoleService(gateways.roles),
     rules: new RuleService(gateways.rules),
     timeline: new TimelineService(gateways.timeline),
+    files: new FileService(new GrpcFileGateway(storage), fileProgress),
     dashboards: new DashboardService(dashboardRepository, savedFilterRepository, search, actors),
     savedFilters: new SavedFilterService(savedFilterRepository, dashboardRepository, actors),
     search,
@@ -70,6 +79,7 @@ const app = createApp({
 const server = app.listen(env.PORT, () => {
   console.log(
     `BFF ouvindo em http://localhost:${env.PORT} (core gRPC: ${env.CORE_GRPC_URL}, contratos: ${env.GRPC_CONTRACTS}, ` +
+      `storage gRPC: ${env.STORAGE_GRPC_URL}, rabbitmq: ${fileProgress ? 'conectado' : 'indisponível'}, ` +
       `elasticsearch: ${env.ELASTICSEARCH_URL}, redis: ${env.REDIS_URL}, ` +
       `otel: ${env.OTEL_ENABLED ? env.OTEL_EXPORTER_OTLP_ENDPOINT : 'desativado'})`,
   );
@@ -78,7 +88,8 @@ const server = app.listen(env.PORT, () => {
 const shutdown = () => {
   server.close(async () => {
     core.close();
-    await Promise.allSettled([redis.close(), elastic.client.close(), shutdownTelemetry()]);
+    storage.close();
+    await Promise.allSettled([redis.close(), elastic.client.close(), fileProgress?.close(), shutdownTelemetry()]);
     process.exit(0);
   });
 };

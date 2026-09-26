@@ -4,6 +4,8 @@ import { COMMODITIES } from '../../cross-cutting/enums/commodity.js';
 import { CONFIRMATION_STATUSES } from '../../cross-cutting/enums/confirmation-status.js';
 import { COUNTERPARTY_TYPES } from '../../cross-cutting/enums/counterparty-type.js';
 import { DESKS } from '../../cross-cutting/enums/desk.js';
+import { FILE_KINDS } from '../../cross-cutting/enums/file-kind.js';
+import { FILE_LINE_STATUSES } from '../../cross-cutting/enums/file-line-status.js';
 import { INSTRUMENT_PERMISSIONS } from '../../cross-cutting/enums/instrument-permission.js';
 import { MANDATE_STATUSES } from '../../cross-cutting/enums/mandate-status.js';
 import { MANDATE_TYPES } from '../../cross-cutting/enums/mandate-type.js';
@@ -372,4 +374,26 @@ export const schemas = {
       pageSize: z.coerce.number().int().min(1).max(200).default(25),
     })
     .transform(toPage),
+
+  // uploads
+  fileKindParam: z.object({ kind: z.enum(FILE_KINDS) }),
+  uploadFile: z.object({
+    kind: z.enum(FILE_KINDS),
+    fileName: z
+      .string({ error: 'Informe o nome do arquivo (header X-File-Name).' })
+      .trim()
+      .min(1, 'Informe o nome do arquivo (header X-File-Name).')
+      .max(255),
+    contentType: z.string().trim().max(200).default('application/octet-stream'),
+  }),
+  filesQuery: pageQuery
+    .extend({ kind: z.enum(FILE_KINDS).optional() })
+    .transform(({ kind, ...page }) => ({ kind: kind ?? null, page: { page: page.page, pageSize: page.pageSize } })),
+  fileLinesQuery: pageQuery
+    .extend({
+      pageSize: z.coerce.number().int().min(1).max(200).default(50),
+      status: z.enum(FILE_LINE_STATUSES).optional(),
+    })
+    .transform(({ status, ...page }) => ({ status: status ?? null, page: { page: page.page, pageSize: page.pageSize } })),
+  fileEventsQuery: z.object({ fileId: z.guid().optional() }).transform(({ fileId }) => ({ fileId: fileId ?? null })),
 };

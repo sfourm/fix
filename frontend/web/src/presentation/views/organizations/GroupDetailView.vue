@@ -39,7 +39,9 @@ const error = ref<string | null>(null);
 const busy = ref(false);
 
 const group = computed(() => groups.value.find((g) => g.id === props.groupId) ?? null);
-const canEdit = computed(() => organization.can(Permission.EditOrganization) && !organization.isInternalOrganization);
+/** Ações conforme as regras efetivas: editar pede update_user; excluir o grupo, delete_user. */
+const canEdit = computed(() => organization.can(Permission.UpdateUser) && !organization.isInternalOrganization);
+const canDelete = computed(() => organization.can(Permission.DeleteUser) && !organization.isInternalOrganization);
 const isRoot = computed(() => group.value?.parentGroupId === null);
 
 async function load() {
@@ -225,10 +227,8 @@ onMounted(load);
         subtitle="Tudo o que o grupo concede vale para todos os membros dele. Para aprovar, o membro também precisa estar num grupo acima de quem emitiu."
       >
         <template #actions>
-          <template v-if="canEdit">
-            <button class="btn" :disabled="busy" @click="renaming = group.name">Renomear</button>
-            <button v-if="!isRoot" class="btn btn-danger" :disabled="busy" @click="remove">Excluir</button>
-          </template>
+          <button v-if="canEdit" class="btn" :disabled="busy" @click="renaming = group.name">Renomear</button>
+          <button v-if="canDelete && !isRoot" class="btn btn-danger" :disabled="busy" @click="remove">Excluir</button>
         </template>
       </PageHeader>
 

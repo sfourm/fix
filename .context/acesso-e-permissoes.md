@@ -8,11 +8,22 @@
 
 ## Roles e rules
 
-- **Roles**: 22 permissões atômicas (`view_policy`, `edit_policy`, `approve_mandate`, `manage_counterparties`, `view_users`,
-  `edit_organization`...). Código em `Fix.Domain/AggregateRoots/Roles/Statics`.
-- **Rules**: conjuntos de roles atribuíveis. Roles efetivas de um membro = rule base (owner/user) + alçadas diretas + alçadas
+- **Roles** (na interface: **regras**): 25 permissões atômicas (`view_policy`, `update_policy`, `approve_mandate`,
+  `manage_counterparties`, `edit_organization`...). Código em `Fix.Domain/AggregateRoots/Roles/Statics`.
+- **Usuários** (membros, grupos/organograma e cargos) têm regras próprias:
+
+  | Regra | Permite |
+  | --- | --- |
+  | `view_user` | ver membros, grupos, organograma e a tela Cargos e Regras |
+  | `create_user` | adicionar membro, criar grupo |
+  | `update_user` | mesa e cargos do membro, cargos e membros do grupo, renomear/mover grupo, criar/editar/excluir cargos |
+  | `delete_user` | remover membro, excluir grupo |
+
+  `edit_organization` ficou só com o setup da companhia (identificação, capacidade, orçamento, financeiro, commodities).
+- **Rules** (na interface: **cargos**): conjuntos de roles atribuíveis. Roles efetivas de um membro = rule base (owner/user) + alçadas diretas + alçadas
   herdadas dos grupos a que pertence.
-- O web consulta as roles efetivas em `GET /api/organization/roles` apenas para exibir/ocultar ações. **Quem autoriza é o core**,
+- O web consulta as roles efetivas em `GET /api/organization/roles` para exibir/ocultar menus, páginas e cada ação
+  (`organization.can(...)`, recarregadas após mudar cargos ou grupos). **Quem autoriza é o core**,
   consultando a base a cada caso de uso (`[RequireRole]` / `[RequireMembership]`).
 
 ## Organização interna FIX
@@ -45,7 +56,7 @@
 
 ## Organograma e decisões
 
-- Os grupos formam uma **árvore** gerida pela organização (`edit_organization`). O grupo raiz é "Direção"; grupos novos entram
+- Os grupos formam uma **árvore** gerida pela organização (`create_user`, `update_user`, `delete_user`). O grupo raiz é "Direção"; grupos novos entram
   abaixo do pai informado; mover um grupo leva os subgrupos (sem ciclos; a raiz não se move).
 - **Decidir** (aprovar/rejeitar) mandatos e boletas exige a role correspondente **e** estar num grupo **acima** de quem fez o pedido.
   Ramo lateral ou mesmo nível não decidem; ninguém decide o próprio pedido; quem não está em grupo fica na base.
